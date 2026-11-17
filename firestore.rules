@@ -47,7 +47,9 @@ service cloud.firestore {
       allow update: if isHouseholdMember(householdId)
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(creditKeys());
       match /boxDrafts/{holidayId} {
-        allow read, write: if isHouseholdMember(householdId);
+        /** Boxes are locked. Clients can read their box but never write it. */
+        allow read: if isHouseholdMember(householdId);
+        allow write: if false;
         /** Box history (functions/src/boxHistory.ts) — written by functions only. */
         match /history/{entryId} {
           allow read: if isAdmin();
@@ -205,6 +207,14 @@ service cloud.firestore {
     }
     /** Post-charge box changes requested by ops (functions/src/boxAdjustment.ts). Functions only. */
     match /boxAdjustments/{adjustmentId} {
+      allow read, write: if false;
+    }
+    /** Complimentary shipments to partners and supporters (functions/src/complimentaryOrders.ts). Functions only. */
+    match /complimentaryOrders/{requestId} {
+      allow read, write: if false;
+    }
+    /** People and items for complimentary shipments (functions/src/complimentaryPlan.ts). Functions only. */
+    match /complimentaryPeople/{personId} {
       allow read, write: if false;
     }
   }

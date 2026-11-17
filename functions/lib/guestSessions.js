@@ -152,12 +152,9 @@ async function saveGuestSessionRecord(db, visitorId, snapshot, now = new Date(),
     return { ok: true };
 }
 /** Callable used by the debounced client sync (src/hooks/useGuestSessionSync.ts). Unauthenticated. */
-exports.saveGuestSession = (0, sentry_1.onCall)({ memory: '512MiB' }, async (request) => {
-    var _a;
-    const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
-    const visitorId = validateVisitorId(data.visitorId);
-    const snapshot = validateSnapshot(data.snapshot);
-    return saveGuestSessionRecord((0, firestore_1.getFirestore)(), visitorId, snapshot, new Date(), (0, geo_1.geoFromRequest)(request.rawRequest));
+exports.saveGuestSession = (0, sentry_1.onCall)({ memory: '512MiB' }, async () => {
+    // Boxes are locked. Guest boxes are no longer saved.
+    return { ok: true, saved: false };
 });
 const BEACON_ORIGINS = [
     'https://grapejuice.co',
@@ -172,25 +169,8 @@ const BEACON_ORIGINS = [
  * as the callable; the client never reads the response.
  */
 exports.saveGuestSessionBeacon = (0, sentry_1.onRequest)({ cors: BEACON_ORIGINS, memory: '512MiB' }, async (req, res) => {
-    var _a, _b;
-    if (req.method !== 'POST') {
-        res.status(405).send('Method not allowed');
-        return;
-    }
-    try {
-        const raw = typeof req.body === 'string' ? req.body : (_b = (_a = req.rawBody) === null || _a === void 0 ? void 0 : _a.toString('utf8')) !== null && _b !== void 0 ? _b : '';
-        const parsed = (raw ? JSON.parse(raw) : isRecord(req.body) ? req.body : {});
-        const visitorId = validateVisitorId(parsed.visitorId);
-        const snapshot = validateSnapshot(parsed.snapshot);
-        await saveGuestSessionRecord((0, firestore_1.getFirestore)(), visitorId, snapshot, new Date(), (0, geo_1.geoFromRequest)(req));
-        res.status(204).send('');
-    }
-    catch (err) {
-        const code = err instanceof sentry_1.HttpsError ? 400 : 500;
-        if (code === 500)
-            logger.error('saveGuestSessionBeacon failed', err);
-        res.status(code).send('');
-    }
+    // Boxes are locked. Guest boxes are no longer saved.
+    res.status(204).send('');
 });
 /** Strip children's first names from a saved snapshot (the account now holds them). */
 function scrubChildNames(snapshot) {

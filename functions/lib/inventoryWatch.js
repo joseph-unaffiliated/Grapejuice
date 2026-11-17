@@ -102,7 +102,7 @@ async function householdsWithSecuredBox(db) {
             .get();
         for (const d of snap.docs) {
             const o = d.data();
-            if (o.orderType === 'marketplace' || o.orderType === 'received_gift' || o.playthrough === true)
+            if (o.orderType === 'marketplace' || o.orderType === 'received_gift' || o.orderType === 'complimentary' || o.playthrough === true)
                 continue;
             const hh = d.ref.parent.parent;
             if ((hh === null || hh === void 0 ? void 0 : hh.parent.id) === 'households')

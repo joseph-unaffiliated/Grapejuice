@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useMobileLayout } from '../../hooks/useMobileLayout';
-import { MobileCodeSignIn } from '../../components/mobile/MobileCodeSignIn';
-import { MobileAccountHub } from '../mobile/MobileAccountHub';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useMobileLayout } from "../../hooks/useMobileLayout";
+import { MobileCodeSignIn } from "../../components/mobile/MobileCodeSignIn";
+import { MobileAccountHub } from "../mobile/MobileAccountHub";
 import {
   View,
   Text,
@@ -11,71 +11,79 @@ import {
   Platform,
   Modal,
   Pressable,
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
-import { useSession } from '../../hooks/useSession';
-import { useAuthStore } from '../../stores/authStore';
-import { useGuestSessionStore } from '../../stores/guestSessionStore';
-import { useDevPreviewStore } from '../../stores/devPreviewStore';
-import { clearDevPreview } from '../../navigation/devPreview';
-import { childrenService } from '../../services/firestore/children';
-import { boxDraftService } from '../../services/firestore/boxDraft';
-import { peekBoxDraftCache } from '../../hooks/useBoxDraft';
-import { createPartnerInvite, acceptPartnerInvite } from '../../services/householdInvites';
-import type { PartnerInvite, Household, UserProfile } from '../../types/pilot';
-import type { MainStackParamList } from '../../navigation/types';
-import { spacing,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import { useSession } from "../../hooks/useSession";
+import { useAuthStore } from "../../stores/authStore";
+import { useGuestSessionStore } from "../../stores/guestSessionStore";
+import { useDevPreviewStore } from "../../stores/devPreviewStore";
+import { clearDevPreview } from "../../navigation/devPreview";
+import { childrenService } from "../../services/firestore/children";
+import { boxDraftService } from "../../services/firestore/boxDraft";
+import { peekBoxDraftCache } from "../../hooks/useBoxDraft";
+import {
+  createPartnerInvite,
+  acceptPartnerInvite,
+} from "../../services/householdInvites";
+import type { PartnerInvite, Household, UserProfile } from "../../types/pilot";
+import type { MainStackParamList } from "../../navigation/types";
+import {
+  spacing,
   typography,
   borderRadius,
   typeface,
   INK,
-} from '../../constants/theme';
-import { useThemeMode } from '../../context/ThemeContext';
-import type { SemanticColors } from '../../constants/themeMode';
-import { WebContentPanel } from '../../components/layout/WebContentPanel';
-import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
-import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
-import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+} from "../../constants/theme";
+import { useThemeMode } from "../../context/ThemeContext";
+import type { SemanticColors } from "../../constants/themeMode";
+import { WebContentPanel } from "../../components/layout/WebContentPanel";
+import { GuestAuthPrompt } from "../../components/auth/GuestAuthPrompt";
+import { BrandLoadingMark } from "../../components/brand/BrandLoadingMark";
+import { StorefrontChrome } from "../../components/storefront/StorefrontChrome";
+import { shopHasBoxOrder as resolveShopHasBoxOrder } from "../../hooks/useUserStatePreview";
+import { usePaymentGate } from "../../hooks/usePaymentGate";
+import { useStorefrontHomeMode } from "../../hooks/useStorefrontHomeMode";
 import {
-  shopHasBoxOrder as resolveShopHasBoxOrder,
-} from '../../hooks/useUserStatePreview';
-import { usePaymentGate } from '../../hooks/usePaymentGate';
-import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
-import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
-import { loadPartnerInvites, peekPartnerInvites } from '../../services/account/accountPrefetch';
-import { getSavedCardSummary } from '../../services/checkout/createMarketplaceCheckout';
-import { peekSavedCard } from '../../services/checkout/checkoutPrefetch';
-import { savedCardLabel } from '../storefront/MarketplacePaymentPanel.web';
-import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
-import { AccountHubHeader } from '../../components/account/AccountHubHeader';
-import { FamilyMembersForm } from '../../components/family/FamilyMembersForm';
+  getHanukkahConfig,
+  peekHanukkahConfig,
+} from "../../services/firestore/config";
+import {
+  loadPartnerInvites,
+  peekPartnerInvites,
+} from "../../services/account/accountPrefetch";
+import { getSavedCardSummary } from "../../services/checkout/createMarketplaceCheckout";
+import { peekSavedCard } from "../../services/checkout/checkoutPrefetch";
+import { savedCardLabel } from "../storefront/MarketplacePaymentPanel.web";
+import { GrapejuiceButton } from "../../components/ui/GrapejuiceButton";
+import { AccountHubHeader } from "../../components/account/AccountHubHeader";
+import { FamilyMembersForm } from "../../components/family/FamilyMembersForm";
 import {
   type ChildDraft,
   childProfilesToDrafts,
   defaultFamilyMembers,
   familyMembersComplete,
   familyMembersFingerprint,
-} from '../../components/family/familyDraft';
+} from "../../components/family/familyDraft";
 import {
   rebuildBoxFromFamily,
   saveFamilyMembers,
-} from '../../services/box/rebuildBoxFromFamily';
-import { useWebLayout } from '../../hooks/useWebLayout';
-import { navigateMainStack } from '../../navigation/mainStackNavigation';
-import { usersService } from '../../services/firestore/users';
-import { isListedAdmin, isOpsAdmin } from '../../constants/admin';
-import { InfluencerDashboard } from '../../components/account/InfluencerDashboard';
-import { formatCreditDollars } from '../../services/box/buildDefaultBox';
-import { creditBalanceLine } from '../../constants/hanukkahBoxLock';
+} from "../../services/box/rebuildBoxFromFamily";
+import { useWebLayout } from "../../hooks/useWebLayout";
+import { navigateMainStack } from "../../navigation/mainStackNavigation";
+import { usersService } from "../../services/firestore/users";
+import { isListedAdmin, isOpsAdmin } from "../../constants/admin";
+import { InfluencerDashboard } from "../../components/account/InfluencerDashboard";
+import { formatCreditDollars } from "../../services/box/buildDefaultBox";
+import { creditBalanceLine } from "../../constants/hanukkahBoxLock";
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
 const PREVIEW_SIGNED_IN_USER = {
-  uid: 'preview-user',
-  email: 'alex@example.com',
-  emails: ['alex@example.com'],
-  displayName: 'Alex',
+  uid: "preview-user",
+  email: "alex@example.com",
+  emails: ["alex@example.com"],
+  displayName: "Alex",
   photoURL: null as string | null,
   hasPasswordProvider: true,
   hasGoogleProvider: false,
@@ -83,21 +91,21 @@ const PREVIEW_SIGNED_IN_USER = {
 };
 
 const PREVIEW_HOUSEHOLD: Household = {
-  id: 'preview-household',
-  name: 'Fox family',
-  ownerId: 'preview-user',
-  memberIds: ['preview-user'],
+  id: "preview-household",
+  name: "Fox family",
+  ownerId: "preview-user",
+  memberIds: ["preview-user"],
   childUserIds: [],
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
 
 const PREVIEW_PROFILE: UserProfile = {
-  uid: 'preview-user',
-  email: 'alex@example.com',
-  displayName: 'Alex',
-  role: 'parent',
-  householdId: 'preview-household',
+  uid: "preview-user",
+  email: "alex@example.com",
+  displayName: "Alex",
+  role: "parent",
+  householdId: "preview-household",
   onboardingComplete: true,
   boxRevealComplete: true,
   createdAt: new Date().toISOString(),
@@ -116,7 +124,10 @@ function AccountScreenBody() {
   const navigation = useNavigation<Nav>();
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createAccountStyles(colors, isDesktop), [colors, isDesktop]);
+  const styles = useMemo(
+    () => createAccountStyles(colors, isDesktop),
+    [colors, isDesktop],
+  );
   const authUser = useAuthStore((s) => s.user);
   const authLoading = useAuthStore((s) => s.isLoading);
   /** A password or Google attempt flips auth loading; keep the phone sign-in form mounted through it. */
@@ -125,16 +136,24 @@ function AccountScreenBody() {
   const changePassword = useAuthStore((s) => s.changePassword);
   const authError = useAuthStore((s) => s.error);
   const clearAuthError = useAuthStore((s) => s.clearError);
-  const { household: sessionHousehold, profile: sessionProfile, loading: sessionLoading, refresh } =
-    useSession();
+  const {
+    household: sessionHousehold,
+    profile: sessionProfile,
+    loading: sessionLoading,
+    refresh,
+  } = useSession();
   const guestHidden = useGuestSessionStore((s) => s.hiddenHolidays);
   const toggleGuestHidden = useGuestSessionStore((s) => s.toggleHiddenHoliday);
   const previewKey = useDevPreviewStore((s) => s.previewKey);
-  const fakeSignedIn = previewKey === 'account-signed-in';
+  const fakeSignedIn = previewKey === "account-signed-in";
   const mobileLayout = useMobileLayout();
   const { openOrder } = usePaymentGate();
-  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
-  const [startsOn, setStartsOn] = useState<string | null>(() => peekHanukkahConfig()?.startsOn ?? null);
+  const [lockAt, setLockAt] = useState<string | null>(
+    () => peekHanukkahConfig()?.lockAt ?? null,
+  );
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null,
+  );
   useEffect(() => {
     let cancelled = false;
     void getHanukkahConfig().then((config) => {
@@ -147,7 +166,7 @@ function AccountScreenBody() {
     };
   }, []);
   const homeMode = useStorefrontHomeMode(lockAt, startsOn);
-  const shopMode = homeMode === 'shop';
+  const shopMode = homeMode === "shop";
   const shopHasBoxOrder = resolveShopHasBoxOrder(homeMode, openOrder);
 
   const user = fakeSignedIn ? PREVIEW_SIGNED_IN_USER : authUser;
@@ -157,33 +176,47 @@ function AccountScreenBody() {
   const familyName = profile?.displayName ?? user?.displayName;
   const appliedFamilySource = React.useRef<string | null>(null);
 
-  const [invites, setInvites] = useState<PartnerInvite[]>(() => peekPartnerInvites(household?.id) ?? []);
-  const [invitesSettled, setInvitesSettled] = useState(
-    () => fakeSignedIn || peekPartnerInvites(household?.id) != null
+  const [invites, setInvites] = useState<PartnerInvite[]>(
+    () => peekPartnerInvites(household?.id) ?? [],
   );
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  const [invitesSettled, setInvitesSettled] = useState(
+    () => fakeSignedIn || peekPartnerInvites(household?.id) != null,
+  );
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [inviteSending, setInviteSending] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [nextPassword, setNextPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [nextPassword, setNextPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordBusy, setPasswordBusy] = useState(false);
-  const [passwordLocalError, setPasswordLocalError] = useState<string | null>(null);
+  const [passwordLocalError, setPasswordLocalError] = useState<string | null>(
+    null,
+  );
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
   const [familyMembers, setFamilyMembers] = useState<ChildDraft[]>(() => {
-    if (fakeSignedIn) return defaultFamilyMembers('Alex');
+    if (fakeSignedIn) return defaultFamilyMembers("Alex");
     const cached = peekBoxDraftCache(household?.id);
     if (!cached) return defaultFamilyMembers(familyName);
-    return childProfilesToDrafts(cached.children, useGuestSessionStore.getState().childDrafts, familyName);
+    return childProfilesToDrafts(
+      cached.children,
+      useGuestSessionStore.getState().childDrafts,
+      familyName,
+    );
   });
-  const [familyBaseline, setFamilyBaseline] = useState(() => familyMembersFingerprint(familyMembers));
-  const [familySynced, setFamilySynced] = useState(
-    () => fakeSignedIn || peekBoxDraftCache(household?.id) != null
+  const [familyBaseline, setFamilyBaseline] = useState(() =>
+    familyMembersFingerprint(familyMembers),
   );
-  const [boxChildren, setBoxChildren] = useState(() => peekBoxDraftCache(household?.id)?.children ?? []);
+  const [familySynced, setFamilySynced] = useState(
+    () => fakeSignedIn || peekBoxDraftCache(household?.id) != null,
+  );
+  const [boxChildren, setBoxChildren] = useState(
+    () => peekBoxDraftCache(household?.id)?.children ?? [],
+  );
   const [hasOwnBox, setHasOwnBox] = useState(
-    () => fakeSignedIn || (peekBoxDraftCache(household?.id)?.lineItems.length ?? 0) > 0
+    () =>
+      fakeSignedIn ||
+      (peekBoxDraftCache(household?.id)?.lineItems.length ?? 0) > 0,
   );
   const [familyBusy, setFamilyBusy] = useState(false);
   const [familyError, setFamilyError] = useState<string | null>(null);
@@ -191,7 +224,8 @@ function AccountScreenBody() {
   const [rebuildModalOpen, setRebuildModalOpen] = useState(false);
 
   const hiddenHolidays = profile?.hiddenHolidays ?? guestHidden;
-  const familyDirty = familyMembersFingerprint(familyMembers) !== familyBaseline;
+  const familyDirty =
+    familyMembersFingerprint(familyMembers) !== familyBaseline;
   const familyComplete = familyMembersComplete(familyMembers);
   const paymentKnown = fakeSignedIn || !sessionLoading || Boolean(household);
   const cardOnFile = Boolean(household?.cardOnFileAt);
@@ -214,7 +248,8 @@ function AccountScreenBody() {
       alive = false;
     };
   }, [mobileLayout, cardOnFile, household?.id, fakeSignedIn]);
-  const creditCents = (household?.giftCreditCents ?? 0) + (household?.platformCreditCents ?? 0);
+  const creditCents =
+    (household?.giftCreditCents ?? 0) + (household?.platformCreditCents ?? 0);
 
   useEffect(() => {
     if (fakeSignedIn) return;
@@ -256,10 +291,15 @@ function AccountScreenBody() {
   useEffect(() => {
     if (fakeSignedIn) return;
     if (sessionLoading && !household?.id) return;
-    if (household?.id && !familySynced && !peekBoxDraftCache(household.id)) return;
+    if (household?.id && !familySynced && !peekBoxDraftCache(household.id))
+      return;
     setFamilySynced(true);
-    const next = childProfilesToDrafts(household?.id ? boxChildren : [], guestDrafts, familyName);
-    const key = `${household?.id ?? ''}|${familyMembersFingerprint(next)}`;
+    const next = childProfilesToDrafts(
+      household?.id ? boxChildren : [],
+      guestDrafts,
+      familyName,
+    );
+    const key = `${household?.id ?? ""}|${familyMembersFingerprint(next)}`;
     if (appliedFamilySource.current === key) return;
     if (familyDirty && appliedFamilySource.current != null) return;
     appliedFamilySource.current = key;
@@ -305,9 +345,9 @@ function AccountScreenBody() {
       await createPartnerInvite({
         householdId: household.id,
         email: inviteEmail.trim(),
-        invitedByName: profile?.displayName ?? user?.displayName ?? 'Partner',
+        invitedByName: profile?.displayName ?? user?.displayName ?? "Partner",
       });
-      setInviteEmail('');
+      setInviteEmail("");
       setInvites(await loadPartnerInvites(household.id, { fresh: true }));
       setInvitesSettled(true);
     } finally {
@@ -320,7 +360,7 @@ function AccountScreenBody() {
     setInviteSending(true);
     try {
       await acceptPartnerInvite({ inviteId: inviteCode.trim() });
-      setInviteCode('');
+      setInviteCode("");
       if (household?.id) {
         setInvites(await loadPartnerInvites(household.id, { fresh: true }));
         setInvitesSettled(true);
@@ -342,8 +382,8 @@ function AccountScreenBody() {
   const onSignOut = () => {
     if (fakeSignedIn) {
       clearDevPreview();
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.location.href = '/store?preview=account';
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.location.href = "/store?preview=account";
       }
       return;
     }
@@ -355,27 +395,27 @@ function AccountScreenBody() {
     setPasswordLocalError(null);
     setPasswordSuccess(false);
     if (fakeSignedIn) {
-      setPasswordLocalError('Preview mode — password changes are disabled.');
+      setPasswordLocalError("Preview mode — password changes are disabled.");
       return;
     }
     if (!currentPassword || !nextPassword) {
-      setPasswordLocalError('Enter your current password and a new password.');
+      setPasswordLocalError("Enter your current password and a new password.");
       return;
     }
     if (nextPassword.length < 6) {
-      setPasswordLocalError('New password must be at least 6 characters.');
+      setPasswordLocalError("New password must be at least 6 characters.");
       return;
     }
     if (nextPassword !== confirmPassword) {
-      setPasswordLocalError('New password and confirmation do not match.');
+      setPasswordLocalError("New password and confirmation do not match.");
       return;
     }
     setPasswordBusy(true);
     try {
       await changePassword(currentPassword, nextPassword);
-      setCurrentPassword('');
-      setNextPassword('');
-      setConfirmPassword('');
+      setCurrentPassword("");
+      setNextPassword("");
+      setConfirmPassword("");
       setPasswordSuccess(true);
     } catch {
       /* store surfaces error */
@@ -397,7 +437,7 @@ function AccountScreenBody() {
     setFamilyError(null);
     setFamilySaved(false);
     if (!familyComplete) {
-      setFamilyError('Add a name for each person.');
+      setFamilyError("Add a name for each person.");
       return;
     }
     if (fakeSignedIn) {
@@ -412,7 +452,9 @@ function AccountScreenBody() {
     setFamilyBusy(true);
     void persistFamilyOnly()
       .catch((err) => {
-        setFamilyError(err instanceof Error ? err.message : 'Could not save family.');
+        setFamilyError(
+          err instanceof Error ? err.message : "Could not save family.",
+        );
       })
       .finally(() => setFamilyBusy(false));
   };
@@ -425,7 +467,9 @@ function AccountScreenBody() {
       await persistFamilyOnly();
       setRebuildModalOpen(false);
     } catch (err) {
-      setFamilyError(err instanceof Error ? err.message : 'Could not save family.');
+      setFamilyError(
+        err instanceof Error ? err.message : "Could not save family.",
+      );
     } finally {
       setFamilyBusy(false);
     }
@@ -434,7 +478,7 @@ function AccountScreenBody() {
   const onRebuildBox = async () => {
     if (familyBusy || fakeSignedIn) return;
     if (!authUser?.uid || !household?.id) {
-      setFamilyError('Sign in with a household to rebuild your box.');
+      setFamilyError("Sign in with a household to rebuild your box.");
       return;
     }
     setFamilyBusy(true);
@@ -445,7 +489,8 @@ function AccountScreenBody() {
         uid: authUser.uid,
         householdId: household.id,
         members: familyMembers,
-        familiarityLevel: profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate',
+        familiarityLevel:
+          profile?.familiarityLevel ?? draft?.familiarityLevel ?? "moderate",
         childInterests: draft?.childInterests,
         ravNotes: profile?.ravNotes,
       });
@@ -453,17 +498,24 @@ function AccountScreenBody() {
       setFamilySaved(true);
       setRebuildModalOpen(false);
       await refresh({ silent: true });
-      navigateMainStack('MyBox');
+      navigateMainStack("MyBox");
     } catch (err) {
-      setFamilyError(err instanceof Error ? err.message : 'Could not rebuild your box.');
+      setFamilyError(
+        err instanceof Error ? err.message : "Could not rebuild your box.",
+      );
     } finally {
       setFamilyBusy(false);
     }
   };
 
-  const goUpdatePayment = () => navigation.navigate('UpdatePayment');
+  const goUpdatePayment = () => navigation.navigate("UpdatePayment");
 
-  if (!fakeSignedIn && !user && (authLoading || sessionLoading) && !(mobileLayout && mobileSignInShown.current)) {
+  if (
+    !fakeSignedIn &&
+    !user &&
+    (authLoading || sessionLoading) &&
+    !(mobileLayout && mobileSignInShown.current)
+  ) {
     return (
       <View style={styles.centered}>
         <BrandLoadingMark color={colors.brand} />
@@ -482,8 +534,15 @@ function AccountScreenBody() {
     if (mobileLayout) {
       mobileSignInShown.current = true;
       return (
-        <ScrollView style={{ flex: 1, backgroundColor: '#FFFFFF' }} keyboardShouldPersistTaps="handled">
-          <MobileCodeSignIn title="Sign in" lead="Enter the email you used for your box." alternatives={{ googleReturnTo: 'Account' }} />
+        <ScrollView
+          style={{ flex: 1, backgroundColor: "#FFFFFF" }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <MobileCodeSignIn
+            title="Sign in"
+            lead="Enter the email you used for your box."
+            alternatives={{ googleReturnTo: "Account" }}
+          />
         </ScrollView>
       );
     }
@@ -498,13 +557,17 @@ function AccountScreenBody() {
     <WebContentPanel {...panelProps}>
       {mobileLayout ? (
         <MobileAccountHub
-          email={user?.email ?? 'Exploring as guest'}
+          email={user?.email ?? "Exploring as guest"}
           displayName={profile?.displayName ?? user?.displayName}
           cardOnFile={cardOnFile}
           paymentKnown={paymentKnown}
           cardLabel={cardLabel}
-          creditLabel={creditCents > 0 ? formatCreditDollars(creditCents) : null}
-          previewBanner={fakeSignedIn ? 'Preview — signed-in account (mock data)' : null}
+          creditLabel={
+            creditCents > 0 ? formatCreditDollars(creditCents) : null
+          }
+          previewBanner={
+            fakeSignedIn ? "Preview — signed-in account (mock data)" : null
+          }
           family={{
             members: familyMembers,
             onChange: (next) => {
@@ -523,7 +586,11 @@ function AccountScreenBody() {
           helpers={
             household?.id || !paymentKnown
               ? {
-                  invites: invites.map((inv) => ({ id: inv.id, email: inv.invitedEmail, status: inv.status })),
+                  invites: invites.map((inv) => ({
+                    id: inv.id,
+                    email: inv.invitedEmail,
+                    status: inv.status,
+                  })),
                   email: inviteEmail,
                   onEmail: setInviteEmail,
                   onSend: () => void sendInvite(),
@@ -538,8 +605,11 @@ function AccountScreenBody() {
           signIn={{
             hasPassword: !!user.hasPasswordProvider,
             hasGoogle: !!user.hasGoogleProvider,
-            onSetPassword: () => navigation.navigate('SetPassword'),
-            onConnectGoogle: Platform.OS === 'web' && !fakeSignedIn ? () => navigation.navigate('ConnectGoogle') : undefined,
+            onSetPassword: () => navigation.navigate("SetPassword"),
+            onConnectGoogle:
+              Platform.OS === "web" && !fakeSignedIn
+                ? () => navigation.navigate("ConnectGoogle")
+                : undefined,
             password: {
               current: currentPassword,
               next: nextPassword,
@@ -555,338 +625,380 @@ function AccountScreenBody() {
           }}
           shopMode={shopMode}
           shopHasBoxOrder={shopHasBoxOrder}
-          onOpenBox={() => navigateMainStack('MyBox')}
-          onBuildBox={() => navigateMainStack('MyBox')}
-          onShop={() => navigation.navigate('StorefrontCategory', { category: 'collection' })}
-          onCheckout={() => navigateMainStack('Checkout')}
-          onOrders={() => navigation.navigate('Orders')}
-          onGifts={() => navigation.navigate('MyGifts')}
+          onOpenBox={() => navigateMainStack("MyBox")}
+          onBuildBox={() => navigateMainStack("MyBox")}
+          onShop={() =>
+            navigation.navigate("StorefrontCategory", {
+              category: "collection",
+            })
+          }
+          onCheckout={() => navigateMainStack("Checkout")}
+          onOrders={() => navigation.navigate("Orders")}
+          onGifts={() => navigation.navigate("MyGifts")}
           onPayment={goUpdatePayment}
-          onFavorites={() => navigation.navigate('StorefrontFavorites')}
-          onHistory={() => navigation.navigate('History')}
-          onSendGift={() => navigation.navigate('GiftGive')}
+          onFavorites={() => navigation.navigate("StorefrontFavorites")}
+          onHistory={() => navigation.navigate("History")}
+          onSendGift={() => navigation.navigate("GiftGive")}
           influencerEnabled={!fakeSignedIn && Boolean(user.emailVerified)}
           ops={
             isListedAdmin(user)
               ? [
-                  { label: 'Catalog', sub: 'Hanukkah SKUs', onPress: () => navigation.navigate('AdminCatalog') },
-                  { label: 'Boxes and Orders', sub: 'Live boxes, shop orders, gifts and inventory', onPress: () => navigation.navigate('AdminBoxes') },
-                  { label: 'Packing', sub: 'Paid boxes, shop orders and gifts to pack, with box sizes', onPress: () => navigation.navigate('AdminPacking') },
-                  { label: 'Promotions', sub: 'Discount codes, credit and influencer links', onPress: () => navigation.navigate('AdminPromotions') },
-                  { label: 'Pilot Participants', sub: 'Invite links and who joined', onPress: () => navigation.navigate('AdminPilot') },
+                  {
+                    label: "Catalog",
+                    sub: "Hanukkah SKUs",
+                    onPress: () => navigation.navigate("AdminCatalog"),
+                  },
+                  {
+                    label: "Boxes and Orders",
+                    sub: "Live boxes, shop orders, gifts and inventory",
+                    onPress: () => navigation.navigate("AdminBoxes"),
+                  },
+                  {
+                    label: "Packing",
+                    sub: "Paid boxes, shop orders, gifts and comps to pack, with box sizes",
+                    onPress: () => navigation.navigate("AdminPacking"),
+                  },
+                  {
+                    label: "Promotions",
+                    sub: "Discount codes, credit and influencer links",
+                    onPress: () => navigation.navigate("AdminPromotions"),
+                  },
+                  {
+                    label: "Pilot Participants",
+                    sub: "Invite links and who joined",
+                    onPress: () => navigation.navigate("AdminPilot"),
+                  },
                 ]
               : undefined
           }
-          signOutLabel={fakeSignedIn ? 'Exit preview' : 'Sign out'}
+          signOutLabel={fakeSignedIn ? "Exit preview" : "Sign out"}
           onSignOut={onSignOut}
         />
       ) : (
-      <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-        {fakeSignedIn ? (
-          <Text style={styles.previewBanner}>Preview — signed-in account (mock data)</Text>
-        ) : null}
-        <AccountHubHeader
-          page="account"
-          email={user?.email ?? 'Exploring as guest'}
-          displayName={profile?.displayName ?? user?.displayName}
-        />
-
-        <View style={styles.sectionDivider} />
-        <Text style={styles.section}>Your Household</Text>
-        {familySynced ? (
-          <>
-            <View style={styles.familyForm}>
-              <FamilyMembersForm
-                members={familyMembers}
-                onChange={(next) => {
-                  setFamilyMembers(next);
-                  setFamilySaved(false);
-                  setFamilyError(null);
-                }}
-                sectionLead=""
-              />
-            </View>
-            <GrapejuiceButton
-              label={familyBusy ? 'Saving…' : 'Save changes'}
-              variant="filled"
-              onPress={onSaveFamilyPress}
-              disabled={!familyDirty || !familyComplete || familyBusy}
-              loading={familyBusy && !rebuildModalOpen}
-              style={styles.actionBtn}
-              textStyle={styles.primaryBtnText}
-            />
-            {familyError ? <Text style={styles.passwordError}>{familyError}</Text> : null}
-            {familySaved && !familyDirty ? (
-              <Text style={styles.passwordSuccess}>Family saved.</Text>
-            ) : null}
-          </>
-        ) : (
-          <View style={styles.familyForm}>
-            <BrandLoadingMark large={false} color={colors.brand} />
-          </View>
-        )}
-
-        {!paymentKnown ? (
-          <>
-            <View style={styles.sectionDivider} />
-            <Text style={styles.section}>Invite a Collaborator</Text>
-            <Text style={styles.hint}>Loading collaborators.</Text>
-          </>
-        ) : household?.id ? (
-          <>
-            <View style={styles.sectionDivider} />
-            <Text style={styles.section}>Invite a Collaborator</Text>
-            <Text style={styles.hint}>Invite a collaborator to edit the same box.</Text>
-            <View style={styles.inviteFieldRow}>
-              <TextInput
-                style={styles.inviteInput}
-                value={inviteEmail}
-                onChangeText={setInviteEmail}
-                placeholder="partner@email.com"
-                placeholderTextColor={colors.textTertiary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                editable={!fakeSignedIn}
-              />
-              <GrapejuiceButton
-                label={inviteSending ? 'Sending…' : 'Send invite'}
-                variant="filled"
-                onPress={() => void sendInvite()}
-                disabled={inviteSending || fakeSignedIn}
-                style={styles.inviteBtn}
-                textStyle={styles.inviteBtnText}
-              />
-            </View>
-            <View style={styles.inviteFieldRow}>
-              <TextInput
-                style={styles.inviteInput}
-                value={inviteCode}
-                onChangeText={setInviteCode}
-                placeholder="Paste invite code to join"
-                placeholderTextColor={colors.textTertiary}
-                autoCapitalize="none"
-                editable={!fakeSignedIn}
-              />
-              <GrapejuiceButton
-                label={inviteSending ? 'Joining…' : 'Accept invite'}
-                variant="filled"
-                onPress={() => void acceptInvite()}
-                disabled={inviteSending || fakeSignedIn}
-                style={styles.inviteBtn}
-                textStyle={styles.inviteBtnText}
-              />
-            </View>
-            {invites.map((inv) => (
-              <Text key={inv.id} style={styles.inviteRow}>
-                {inv.invitedEmail} — {inv.status}
-              </Text>
-            ))}
-          </>
-        ) : (
-          <>
-            <View style={styles.sectionDivider} />
-            <Text style={styles.section}>Invite a Collaborator</Text>
-            <Text style={styles.hint}>Sign in to invite a collaborator and share your box.</Text>
-          </>
-        )}
-
-        <View style={styles.sectionDivider} />
-        <Text style={styles.section}>Payment Information</Text>
-        <Text style={styles.hint}>
-          {!paymentKnown
-            ? 'Checking the card on file.'
-            : cardOnFile
-              ? 'A card is saved for your household box and checkout.'
-              : 'No card on file yet. Add one to commit your box or check out faster.'}
-        </Text>
-        {creditCents > 0 ? (
-          <Text style={[styles.hint, styles.creditLine]}>
-            {creditBalanceLine(formatCreditDollars(creditCents), openOrder)}
-          </Text>
-        ) : null}
-        <GrapejuiceButton
-          label={cardOnFile ? 'Update payment' : 'Add payment'}
-          variant="filled"
-          onPress={goUpdatePayment}
-          disabled={fakeSignedIn || !household?.id}
-          style={styles.actionBtn}
-          textStyle={styles.primaryBtnText}
-        />
-
-        <View style={styles.sectionDivider} />
-        <Text style={styles.section}>
-          {user.hasPasswordProvider ? 'Reset Password' : 'Set a Password'}
-        </Text>
-        {user.hasPasswordProvider ? (
-          <>
-            <Text style={styles.hint}>Change the password for {user.email ?? 'your account'}.</Text>
-            <TextInput
-              style={styles.input}
-              value={currentPassword}
-              onChangeText={setCurrentPassword}
-              placeholder="Current password"
-              placeholderTextColor={colors.textTertiary}
-              secureTextEntry
-              autoCapitalize="none"
-              autoComplete="password"
-              textContentType="password"
-              editable={!fakeSignedIn && !passwordBusy}
-            />
-            <TextInput
-              style={styles.input}
-              value={nextPassword}
-              onChangeText={setNextPassword}
-              placeholder="New password"
-              placeholderTextColor={colors.textTertiary}
-              secureTextEntry
-              autoCapitalize="none"
-              autoComplete="password-new"
-              textContentType="newPassword"
-              editable={!fakeSignedIn && !passwordBusy}
-            />
-            <TextInput
-              style={styles.input}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Confirm new password"
-              placeholderTextColor={colors.textTertiary}
-              secureTextEntry
-              autoCapitalize="none"
-              autoComplete="password-new"
-              textContentType="newPassword"
-              editable={!fakeSignedIn && !passwordBusy}
-              onSubmitEditing={() => void onChangePassword()}
-            />
-            <GrapejuiceButton
-              label={passwordBusy ? 'Updating…' : 'Update password'}
-              variant="filled"
-              onPress={() => void onChangePassword()}
-              disabled={passwordBusy || fakeSignedIn}
-              loading={passwordBusy}
-              style={styles.actionBtn}
-              textStyle={styles.primaryBtnText}
-            />
-            {passwordLocalError || authError ? (
-              <Text style={styles.passwordError}>{passwordLocalError || authError}</Text>
-            ) : null}
-            {passwordSuccess ? (
-              <Text style={styles.passwordSuccess}>Password updated.</Text>
-            ) : null}
-          </>
-        ) : (
-          <>
-            <Text style={styles.hint}>
-              {user.hasGoogleProvider
-                ? `You log in with Google. Add a password to also log in to ${user.email ?? 'your account'} with email.`
-                : `You log in with emailed links. Add a password to log in to ${user.email ?? 'your account'} directly.`}
+        <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+          {fakeSignedIn ? (
+            <Text style={styles.previewBanner}>
+              Preview — signed-in account (mock data)
             </Text>
+          ) : null}
+          <AccountHubHeader
+            page="account"
+            email={user?.email ?? "Exploring as guest"}
+            displayName={profile?.displayName ?? user?.displayName}
+          />
+
+          <View style={styles.sectionDivider} />
+          <Text style={styles.section}>Your Household</Text>
+          {familySynced ? (
+            <>
+              <View style={styles.familyForm}>
+                <FamilyMembersForm
+                  members={familyMembers}
+                  onChange={(next) => {
+                    setFamilyMembers(next);
+                    setFamilySaved(false);
+                    setFamilyError(null);
+                  }}
+                  sectionLead=""
+                />
+              </View>
+              <GrapejuiceButton
+                label={familyBusy ? "Saving…" : "Save changes"}
+                variant="filled"
+                onPress={onSaveFamilyPress}
+                disabled={!familyDirty || !familyComplete || familyBusy}
+                loading={familyBusy && !rebuildModalOpen}
+                style={styles.actionBtn}
+                textStyle={styles.primaryBtnText}
+              />
+              {familyError ? (
+                <Text style={styles.passwordError}>{familyError}</Text>
+              ) : null}
+              {familySaved && !familyDirty ? (
+                <Text style={styles.passwordSuccess}>Family saved.</Text>
+              ) : null}
+            </>
+          ) : (
+            <View style={styles.familyForm}>
+              <BrandLoadingMark large={false} color={colors.brand} />
+            </View>
+          )}
+
+          {!paymentKnown ? (
+            <>
+              <View style={styles.sectionDivider} />
+              <Text style={styles.section}>Invite a Collaborator</Text>
+              <Text style={styles.hint}>Loading collaborators.</Text>
+            </>
+          ) : household?.id ? (
+            <>
+              <View style={styles.sectionDivider} />
+              <Text style={styles.section}>Invite a Collaborator</Text>
+              <Text style={styles.hint}>
+                Invite a collaborator to edit the same box.
+              </Text>
+              <View style={styles.inviteFieldRow}>
+                <TextInput
+                  style={styles.inviteInput}
+                  value={inviteEmail}
+                  onChangeText={setInviteEmail}
+                  placeholder="partner@email.com"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!fakeSignedIn}
+                />
+                <GrapejuiceButton
+                  label={inviteSending ? "Sending…" : "Send invite"}
+                  variant="filled"
+                  onPress={() => void sendInvite()}
+                  disabled={inviteSending || fakeSignedIn}
+                  style={styles.inviteBtn}
+                  textStyle={styles.inviteBtnText}
+                />
+              </View>
+              <View style={styles.inviteFieldRow}>
+                <TextInput
+                  style={styles.inviteInput}
+                  value={inviteCode}
+                  onChangeText={setInviteCode}
+                  placeholder="Paste invite code to join"
+                  placeholderTextColor={colors.textTertiary}
+                  autoCapitalize="none"
+                  editable={!fakeSignedIn}
+                />
+                <GrapejuiceButton
+                  label={inviteSending ? "Joining…" : "Accept invite"}
+                  variant="filled"
+                  onPress={() => void acceptInvite()}
+                  disabled={inviteSending || fakeSignedIn}
+                  style={styles.inviteBtn}
+                  textStyle={styles.inviteBtnText}
+                />
+              </View>
+              {invites.map((inv) => (
+                <Text key={inv.id} style={styles.inviteRow}>
+                  {inv.invitedEmail} — {inv.status}
+                </Text>
+              ))}
+            </>
+          ) : (
+            <>
+              <View style={styles.sectionDivider} />
+              <Text style={styles.section}>Invite a Collaborator</Text>
+              <Text style={styles.hint}>
+                Sign in to invite a collaborator and share your box.
+              </Text>
+            </>
+          )}
+
+          <View style={styles.sectionDivider} />
+          <Text style={styles.section}>Payment Information</Text>
+          <Text style={styles.hint}>
+            {!paymentKnown
+              ? "Checking the card on file."
+              : cardOnFile
+                ? "A card is saved for your household box and checkout."
+                : "No card on file yet. Add one to commit your box or check out faster."}
+          </Text>
+          {creditCents > 0 ? (
+            <Text style={[styles.hint, styles.creditLine]}>
+              {creditBalanceLine(formatCreditDollars(creditCents), openOrder)}
+            </Text>
+          ) : null}
+          <GrapejuiceButton
+            label={cardOnFile ? "Update payment" : "Add payment"}
+            variant="filled"
+            onPress={goUpdatePayment}
+            disabled={fakeSignedIn || !household?.id}
+            style={styles.actionBtn}
+            textStyle={styles.primaryBtnText}
+          />
+
+          <View style={styles.sectionDivider} />
+          <Text style={styles.section}>
+            {user.hasPasswordProvider ? "Reset Password" : "Set a Password"}
+          </Text>
+          {user.hasPasswordProvider ? (
+            <>
+              <Text style={styles.hint}>
+                Change the password for {user.email ?? "your account"}.
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                placeholder="Current password"
+                placeholderTextColor={colors.textTertiary}
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="password"
+                textContentType="password"
+                editable={!fakeSignedIn && !passwordBusy}
+              />
+              <TextInput
+                style={styles.input}
+                value={nextPassword}
+                onChangeText={setNextPassword}
+                placeholder="New password"
+                placeholderTextColor={colors.textTertiary}
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="password-new"
+                textContentType="newPassword"
+                editable={!fakeSignedIn && !passwordBusy}
+              />
+              <TextInput
+                style={styles.input}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Confirm new password"
+                placeholderTextColor={colors.textTertiary}
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="password-new"
+                textContentType="newPassword"
+                editable={!fakeSignedIn && !passwordBusy}
+                onSubmitEditing={() => void onChangePassword()}
+              />
+              <GrapejuiceButton
+                label={passwordBusy ? "Updating…" : "Update password"}
+                variant="filled"
+                onPress={() => void onChangePassword()}
+                disabled={passwordBusy || fakeSignedIn}
+                loading={passwordBusy}
+                style={styles.actionBtn}
+                textStyle={styles.primaryBtnText}
+              />
+              {passwordLocalError || authError ? (
+                <Text style={styles.passwordError}>
+                  {passwordLocalError || authError}
+                </Text>
+              ) : null}
+              {passwordSuccess ? (
+                <Text style={styles.passwordSuccess}>Password updated.</Text>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Text style={styles.hint}>
+                {user.hasGoogleProvider
+                  ? `You log in with Google. Add a password to also log in to ${user.email ?? "your account"} with email.`
+                  : `You log in with emailed links. Add a password to log in to ${user.email ?? "your account"} directly.`}
+              </Text>
+              <GrapejuiceButton
+                label="Set a password"
+                variant="filled"
+                onPress={() => navigation.navigate("SetPassword")}
+                disabled={fakeSignedIn}
+                style={styles.actionBtn}
+                textStyle={styles.primaryBtnText}
+              />
+            </>
+          )}
+          {!user.hasGoogleProvider && Platform.OS === "web" ? (
             <GrapejuiceButton
-              label="Set a password"
-              variant="filled"
-              onPress={() => navigation.navigate('SetPassword')}
+              label="Log in with Google"
+              variant="pillOutline"
+              onPress={() => navigation.navigate("ConnectGoogle")}
               disabled={fakeSignedIn}
               style={styles.actionBtn}
               textStyle={styles.primaryBtnText}
             />
-          </>
-        )}
-        {!user.hasGoogleProvider && Platform.OS === 'web' ? (
+          ) : null}
+
+          {hiddenHolidays.length ? (
+            <>
+              <View style={styles.sectionDivider} />
+              <Text style={styles.section}>Hidden holidays</Text>
+              {hiddenHolidays.map((id) => (
+                <GrapejuiceButton
+                  key={id}
+                  label={`Show ${id} again`}
+                  variant="pillOutline"
+                  onPress={() => void restoreHidden(id)}
+                  style={styles.actionBtn}
+                  textStyle={styles.primaryBtnText}
+                />
+              ))}
+            </>
+          ) : null}
+
+          <View style={styles.sectionDivider} />
+          <Text style={styles.section}>Gift a box</Text>
+          <Text style={styles.hint}>
+            Send gift credit or a curated gift box to another family.
+          </Text>
           <GrapejuiceButton
-            label="Log in with Google"
-            variant="pillOutline"
-            onPress={() => navigation.navigate('ConnectGoogle')}
-            disabled={fakeSignedIn}
+            label="Send a gift"
+            variant="filled"
+            onPress={() => navigation.navigate("GiftGive")}
             style={styles.actionBtn}
             textStyle={styles.primaryBtnText}
           />
-        ) : null}
 
-        {hiddenHolidays.length ? (
-          <>
-            <View style={styles.sectionDivider} />
-            <Text style={styles.section}>Hidden holidays</Text>
-            {hiddenHolidays.map((id) => (
+          <InfluencerDashboard
+            enabled={!fakeSignedIn && Boolean(user.emailVerified)}
+            sectionStyle={styles.section}
+            dividerStyle={styles.sectionDivider}
+          />
+
+          {isOpsAdmin(user) ? (
+            <>
+              <View style={styles.sectionDivider} />
+              <Text style={styles.section}>Ops</Text>
+              <Text style={styles.hint}>
+                Edit Hanukkah catalog SKUs, see live boxes, shop orders, gifts
+                and inventory, or manage discount codes, credit and influencer
+                links.
+              </Text>
               <GrapejuiceButton
-                key={id}
-                label={`Show ${id} again`}
-                variant="pillOutline"
-                onPress={() => void restoreHidden(id)}
+                label="Catalog admin"
+                variant="filled"
+                onPress={() => navigation.navigate("AdminCatalog")}
                 style={styles.actionBtn}
                 textStyle={styles.primaryBtnText}
               />
-            ))}
-          </>
-        ) : null}
+              <GrapejuiceButton
+                label="Orders and Inventory"
+                variant="filled"
+                onPress={() => navigation.navigate("AdminBoxes")}
+                style={styles.actionBtn}
+                textStyle={styles.primaryBtnText}
+              />
+              <GrapejuiceButton
+                label="Packing"
+                variant="filled"
+                onPress={() => navigation.navigate("AdminPacking")}
+                style={styles.actionBtn}
+                textStyle={styles.primaryBtnText}
+              />
+              <GrapejuiceButton
+                label="Promotions"
+                variant="filled"
+                onPress={() => navigation.navigate("AdminPromotions")}
+                style={styles.actionBtn}
+                textStyle={styles.primaryBtnText}
+              />
+              <GrapejuiceButton
+                label="Pilot Participants"
+                variant="filled"
+                onPress={() => navigation.navigate("AdminPilot")}
+                style={styles.actionBtn}
+                textStyle={styles.primaryBtnText}
+              />
+            </>
+          ) : null}
 
-        <View style={styles.sectionDivider} />
-        <Text style={styles.section}>Gift a box</Text>
-        <Text style={styles.hint}>Send gift credit or a curated gift box to another family.</Text>
-        <GrapejuiceButton
-          label="Send a gift"
-          variant="filled"
-          onPress={() => navigation.navigate('GiftGive')}
-          style={styles.actionBtn}
-          textStyle={styles.primaryBtnText}
-        />
-
-        <InfluencerDashboard
-          enabled={!fakeSignedIn && Boolean(user.emailVerified)}
-          sectionStyle={styles.section}
-          dividerStyle={styles.sectionDivider}
-        />
-
-        {isOpsAdmin(user) ? (
-          <>
-            <View style={styles.sectionDivider} />
-            <Text style={styles.section}>Ops</Text>
-            <Text style={styles.hint}>Edit Hanukkah catalog SKUs, see live boxes, shop orders, gifts and inventory, or manage discount codes, credit and influencer links.</Text>
-            <GrapejuiceButton
-              label="Catalog admin"
-              variant="filled"
-              onPress={() => navigation.navigate('AdminCatalog')}
-              style={styles.actionBtn}
-              textStyle={styles.primaryBtnText}
-            />
-            <GrapejuiceButton
-              label="Orders and Inventory"
-              variant="filled"
-              onPress={() => navigation.navigate('AdminBoxes')}
-              style={styles.actionBtn}
-              textStyle={styles.primaryBtnText}
-            />
-            <GrapejuiceButton
-              label="Packing"
-              variant="filled"
-              onPress={() => navigation.navigate('AdminPacking')}
-              style={styles.actionBtn}
-              textStyle={styles.primaryBtnText}
-            />
-            <GrapejuiceButton
-              label="Promotions"
-              variant="filled"
-              onPress={() => navigation.navigate('AdminPromotions')}
-              style={styles.actionBtn}
-              textStyle={styles.primaryBtnText}
-            />
-            <GrapejuiceButton
-              label="Pilot Participants"
-              variant="filled"
-              onPress={() => navigation.navigate('AdminPilot')}
-              style={styles.actionBtn}
-              textStyle={styles.primaryBtnText}
-            />
-          </>
-        ) : null}
-
-        <View style={styles.sectionDivider} />
-        <GrapejuiceButton
-          label={fakeSignedIn ? 'Exit preview' : 'Sign out'}
-          variant="filled"
-          onPress={onSignOut}
-          style={styles.logoutBtn}
-          textStyle={styles.logoutBtnText}
-        />
-      </ScrollView>
+          <View style={styles.sectionDivider} />
+          <GrapejuiceButton
+            label={fakeSignedIn ? "Exit preview" : "Sign out"}
+            variant="filled"
+            onPress={onSignOut}
+            style={styles.logoutBtn}
+            textStyle={styles.logoutBtnText}
+          />
+        </ScrollView>
       )}
 
       <Modal
@@ -914,8 +1026,8 @@ function AccountScreenBody() {
               Do you want to rebuild your box to account for these changes?
             </Text>
             <Text style={styles.modalBody}>
-              If you do, you will lose all customizations and some items you&apos;d selected may no
-              longer be available.
+              If you do, you will lose all customizations and some items
+              you&apos;d selected may no longer be available.
             </Text>
             <View style={styles.modalActions}>
               <GrapejuiceButton
@@ -945,27 +1057,27 @@ function AccountScreenBody() {
 
 function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
   return StyleSheet.create({
-    panel: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
+    panel: { flex: 1, width: "100%", backgroundColor: colors.bgPrimary },
     root: { flex: 1, backgroundColor: colors.bgPrimary },
     content: {
       padding: spacing.lg,
       paddingTop: spacing.xxl + spacing.md,
       paddingBottom: 120,
       maxWidth: isDesktop ? 560 : undefined,
-      width: '100%',
-      alignSelf: isDesktop ? 'center' : undefined,
+      width: "100%",
+      alignSelf: isDesktop ? "center" : undefined,
     },
-    centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    centered: { flex: 1, alignItems: "center", justifyContent: "center" },
     previewBanner: {
-      ...typeface('light'),
+      ...typeface("light"),
       fontSize: typography.sm,
       color: colors.goldMuted,
       marginBottom: spacing.md,
       letterSpacing: -0.22,
-      textAlign: 'center',
+      textAlign: "center",
     },
     section: {
-      ...typeface('medium'),
+      ...typeface("medium"),
       fontSize: 22,
       lineHeight: 28,
       letterSpacing: -0.3,
@@ -974,14 +1086,14 @@ function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
       marginBottom: spacing.sm,
     },
     sectionDivider: {
-      alignSelf: 'stretch',
+      alignSelf: "stretch",
       height: StyleSheet.hairlineWidth,
       backgroundColor: colors.border,
       marginTop: spacing.xl,
       marginBottom: spacing.sm,
     },
     hint: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       fontSize: typography.md,
       letterSpacing: -0.22,
       color: colors.textSecondary,
@@ -995,7 +1107,7 @@ function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
       color: colors.textPrimary,
     },
     input: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.brand,
       borderRadius: borderRadius.xl,
@@ -1008,22 +1120,22 @@ function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     actionBtn: {
       marginTop: spacing.sm,
-      alignSelf: 'stretch',
-      width: '100%',
+      alignSelf: "stretch",
+      width: "100%",
       borderRadius: borderRadius.xl,
     },
     primaryBtnText: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       color: colors.logoDark,
     },
     inviteFieldRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: spacing.sm,
       marginTop: spacing.sm,
     },
     inviteInput: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       flex: 1,
       minWidth: 0,
       borderWidth: StyleSheet.hairlineWidth,
@@ -1038,59 +1150,59 @@ function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
     inviteBtn: {
       flexGrow: 0,
       flexShrink: 0,
-      width: 'auto',
-      alignSelf: 'center',
+      width: "auto",
+      alignSelf: "center",
       paddingHorizontal: spacing.md,
       paddingVertical: 10,
       minHeight: 44,
       borderRadius: borderRadius.xl,
     },
     inviteBtnText: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       color: colors.logoDark,
       fontSize: typography.md,
     },
     inviteRow: {
-      ...typeface('light'),
+      ...typeface("light"),
       fontSize: typography.sm,
       color: colors.textSecondary,
       marginTop: spacing.xs,
     },
     passwordError: {
       marginTop: spacing.sm,
-      ...typeface('regular'),
+      ...typeface("regular"),
       fontSize: typography.sm,
       color: colors.error,
     },
     passwordSuccess: {
       marginTop: spacing.sm,
-      ...typeface('medium'),
+      ...typeface("medium"),
       fontSize: typography.sm,
       color: colors.textSecondary,
     },
     logoutBtn: {
       marginTop: spacing.md,
-      alignSelf: 'stretch',
-      width: '100%',
+      alignSelf: "stretch",
+      width: "100%",
       backgroundColor: colors.logoDark,
       borderRadius: borderRadius.xl,
     },
     logoutBtnText: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       color: colors.brand,
     },
     modalRoot: {
       flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
+      justifyContent: "center",
+      alignItems: "center",
       paddingHorizontal: spacing.lg,
     },
     backdrop: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(17, 2, 34, 0.45)',
+      backgroundColor: "rgba(17, 2, 34, 0.45)",
     },
     modalCard: {
-      width: '100%',
+      width: "100%",
       maxWidth: 400,
       backgroundColor: colors.bgPrimary,
       borderRadius: borderRadius.lg,
@@ -1099,8 +1211,8 @@ function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
       paddingBottom: spacing.lg,
       gap: spacing.md,
       zIndex: 1,
-      ...(Platform.OS === 'web'
-        ? ({ boxShadow: '0 16px 48px rgba(17, 2, 34, 0.28)' } as object)
+      ...(Platform.OS === "web"
+        ? ({ boxShadow: "0 16px 48px rgba(17, 2, 34, 0.28)" } as object)
         : {
             shadowColor: INK,
             shadowOffset: { width: 0, height: 12 },
@@ -1110,27 +1222,27 @@ function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
           }),
     },
     modalHeadline: {
-      ...typeface('medium'),
+      ...typeface("medium"),
       fontSize: 22,
       lineHeight: 28,
       letterSpacing: -0.3,
       color: colors.logoDark,
-      textAlign: 'center',
-      ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
+      textAlign: "center",
+      ...(Platform.OS === "web" ? ({ textWrap: "balance" } as object) : null),
     },
     modalBody: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       fontSize: typography.md,
       lineHeight: 18,
       letterSpacing: -0.2,
       color: colors.textSecondary,
-      textAlign: 'center',
-      ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
+      textAlign: "center",
+      ...(Platform.OS === "web" ? ({ textWrap: "balance" } as object) : null),
     },
     modalActions: {
       gap: spacing.sm,
       marginTop: spacing.sm,
-      width: '100%',
+      width: "100%",
     },
     modalBtn: {
       borderRadius: borderRadius.xl,

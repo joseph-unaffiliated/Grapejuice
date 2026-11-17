@@ -84,7 +84,7 @@ function padKeys(keys: string[], count: number, prefix: string): string[] {
 }
 
 function isBoxOrder(o: Rec): boolean {
-  return o.orderType !== 'marketplace' && o.orderType !== 'received_gift' && o.playthrough !== true;
+  return o.orderType !== 'marketplace' && o.orderType !== 'received_gift' && o.orderType !== 'complimentary' && o.playthrough !== true;
 }
 
 /** Signed-out box and gift draft from a guestSessions doc (null when there is none to audit). */

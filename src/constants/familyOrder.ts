@@ -6,27 +6,28 @@
  * Clear this browser’s unlock: /d/clear-family (also /d/remove-friends-and-family).
  */
 
-const STORAGE_KEY = 'gj.familyOrder';
+const STORAGE_KEY = "gj.familyOrder";
 
 /** Paths that drop the local F&F unlock (mobile-friendly; no admin panel needed). */
 const CLEAR_FAMILY_PATH =
   /^\/d\/(clear-family|remove-friends-and-family|remove-family-order)\/?$/i;
 
 export function familyOrderToken(): string {
-  if (typeof localStorage === 'undefined') return '';
+  if (typeof localStorage === "undefined") return "";
   try {
-    return localStorage.getItem(STORAGE_KEY)?.trim() ?? '';
+    return localStorage.getItem(STORAGE_KEY)?.trim() ?? "";
   } catch {
-    return '';
+    return "";
   }
 }
 
+/** Friends-and-family link is shut off. Boxes are locked for everyone. */
 export function familyOrderOpen(): boolean {
-  return familyOrderToken().length >= 16;
+  return false;
 }
 
 export function rememberFamilyOrderToken(token: string): void {
-  if (typeof localStorage === 'undefined') return;
+  if (typeof localStorage === "undefined") return;
   const value = token.trim();
   if (value.length < 16) return;
   try {
@@ -38,7 +39,7 @@ export function rememberFamilyOrderToken(token: string): void {
 
 /** Drop the F&F unlock so this browser matches normal post-lock shoppers again. */
 export function clearFamilyOrderToken(): void {
-  if (typeof localStorage === 'undefined') return;
+  if (typeof localStorage === "undefined") return;
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch {
@@ -48,16 +49,20 @@ export function clearFamilyOrderToken(): void {
 
 /** Read /d/order/<token> once, store it, and drop it from the address bar. */
 export function captureFamilyOrderFromLocation(): void {
-  if (typeof window === 'undefined') return;
-  const match = window.location.pathname.match(/^\/d\/order\/([A-Za-z0-9_-]{16,})\/?$/);
+  if (typeof window === "undefined") return;
+  const match = window.location.pathname.match(
+    /^\/d\/order\/([A-Za-z0-9_-]{16,})\/?$/,
+  );
   if (!match) return;
   rememberFamilyOrderToken(match[1]);
   const search = window.location.search;
-  window.history.replaceState({}, '', `/${search === '?' ? '' : search}`);
+  window.history.replaceState({}, "", `/${search === "?" ? "" : search}`);
 }
 
 /** True when this path (or boot path) is a clear-family deep link. */
-export function isClearFamilyPath(pathname: string | null | undefined): boolean {
+export function isClearFamilyPath(
+  pathname: string | null | undefined,
+): boolean {
   if (!pathname) return false;
   return CLEAR_FAMILY_PATH.test(pathname);
 }
@@ -69,13 +74,15 @@ export function isClearFamilyPath(pathname: string | null | undefined): boolean 
  * Must run from boot (before React Navigation rewrites the address bar to `/`),
  * otherwise the clear path is gone and the unlock stays in localStorage.
  */
-export function clearFamilyOrderFromLocation(pathname?: string | null): boolean {
-  if (typeof window === 'undefined') return false;
+export function clearFamilyOrderFromLocation(
+  pathname?: string | null,
+): boolean {
+  if (typeof window === "undefined") return false;
   const path = pathname ?? window.location.pathname;
   if (!isClearFamilyPath(path)) return false;
   clearFamilyOrderToken();
   const search = window.location.search;
-  const home = `/${search === '?' ? '' : search}`;
+  const home = `/${search === "?" ? "" : search}`;
   // Hard navigate — more reliable than replaceState + reload on mobile Safari.
   window.location.replace(home);
   return true;

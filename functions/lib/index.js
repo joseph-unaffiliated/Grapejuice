@@ -1,9 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.enrollPilot = exports.adminPilotParticipants = exports.scheduledMetaShopInventoryPause = exports.scheduledMetaGuard = exports.scheduledProgramSnapshots = exports.scheduledPilotSurveyReminders = exports.scheduledNewsletterSuppression = exports.scheduledDraftLifecycleSunday = exports.scheduledDraftLifecycle = exports.scheduledCheckoutAbandoner = exports.scheduledBookSelloutFlips = exports.scheduledInventoryEmails = exports.applyBoxProblemFix = exports.decideBoxAuditProblem = exports.scheduledBoxAudit = exports.recordGuestBoxHistory = exports.recordBoxDraftHistory = exports.scheduledInventoryWatch = exports.scheduledFollowUpListAudience = exports.getMyInfluencerStats = exports.checkPromo = exports.awardDebriefCredit = exports.adminPromotions = exports.unaffiliatedVisit = exports.retentionLead = exports.validateShippingAddress = exports.redeemLoginCode = exports.requestLoginCode = exports.redeemLoginLink = exports.requestLoginLink = exports.signInGiftGiver = exports.revealBoxWithEmail = exports.resumePilotGiftPayment = exports.cancelPilotGift = exports.processBoxAdjustment = exports.restorePilotBoxOrder = exports.recordCheckoutStep = exports.recordGiftStep = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.noteVisitorRegion = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = exports.scheduledBoxesDashboard = void 0;
-exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledStopGrapejuiceAds = exports.scheduledOpenExtension = exports.scheduledRetireDrafts = exports.scheduledKosherNotices = exports.scheduledPilotAutoInvites = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.claimMarketplaceCheckoutSignIn = exports.payMarketplaceOrderWithSavedCard = exports.getSavedCardSummary = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.adminProgramTrackOverride = exports.adminProgramPerson = exports.getAdminProgramDashboard = exports.setAdminPackingState = exports.getAdminPacking = exports.getAdminBoxesDashboard = exports.sendPilotJoinedEmail = exports.healPilotDraftLines = exports.getPilotInvite = void 0;
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.backfillCatalogThumbsHttp = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = void 0;
-const crypto_1 = require("crypto");
+exports.scheduledMetaShopInventoryPause = exports.scheduledMetaGuard = exports.scheduledProgramSnapshots = exports.scheduledPilotSurveyReminders = exports.scheduledNewsletterSuppression = exports.scheduledDraftLifecycleSunday = exports.scheduledDraftLifecycle = exports.scheduledCheckoutAbandoner = exports.scheduledBookSelloutFlips = exports.scheduledInventoryEmails = exports.applyBoxProblemFix = exports.decideBoxAuditProblem = exports.scheduledBoxAudit = exports.recordGuestBoxHistory = exports.recordBoxDraftHistory = exports.scheduledInventoryWatch = exports.scheduledFollowUpListAudience = exports.getMyInfluencerStats = exports.checkPromo = exports.awardDebriefCredit = exports.adminPromotions = exports.unaffiliatedVisit = exports.retentionLead = exports.validateShippingAddress = exports.redeemLoginCode = exports.requestLoginCode = exports.redeemLoginLink = exports.requestLoginLink = exports.signInGiftGiver = exports.revealBoxWithEmail = exports.resumePilotGiftPayment = exports.cancelPilotGift = exports.adminComplimentaryPlan = exports.processComplimentaryOrder = exports.processBoxAdjustment = exports.restorePilotBoxOrder = exports.recordCheckoutStep = exports.recordGiftStep = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.noteVisitorRegion = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = exports.scheduledBoxesDashboard = void 0;
+exports.scheduledStopGrapejuiceAds = exports.scheduledOpenExtension = exports.scheduledRetireDrafts = exports.scheduledKosherNotices = exports.scheduledPilotAutoInvites = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.claimMarketplaceCheckoutSignIn = exports.payMarketplaceOrderWithSavedCard = exports.getSavedCardSummary = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.adminProgramTrackOverride = exports.adminProgramPerson = exports.getAdminProgramDashboard = exports.setAdminPackingState = exports.getAdminPacking = exports.getAdminBoxesDashboard = exports.sendPilotJoinedEmail = exports.healPilotDraftLines = exports.getPilotInvite = exports.enrollPilot = exports.adminPilotParticipants = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.backfillCatalogThumbsHttp = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = void 0;
 const logger = require("./logger");
 const testAccounts_1 = require("./testAccounts");
 const metaPracticeCutoff_1 = require("./metaPracticeCutoff");
@@ -38,7 +37,7 @@ const lockNotes_1 = require("./program/lockNotes");
 const draftArchive_1 = require("./program/draftArchive");
 const catalogInventory_1 = require("./catalogInventory");
 const metaCapi_1 = require("./metaCapi");
-const crypto_2 = require("crypto");
+const crypto_1 = require("crypto");
 const adminDashboard_1 = require("./adminDashboard");
 const adminPacking_1 = require("./adminPacking");
 var adminDashboard_2 = require("./adminDashboard");
@@ -67,6 +66,10 @@ var orderRestore_1 = require("./orderRestore");
 Object.defineProperty(exports, "restorePilotBoxOrder", { enumerable: true, get: function () { return orderRestore_1.restorePilotBoxOrder; } });
 var boxAdjustment_1 = require("./boxAdjustment");
 Object.defineProperty(exports, "processBoxAdjustment", { enumerable: true, get: function () { return boxAdjustment_1.processBoxAdjustment; } });
+var complimentaryOrders_1 = require("./complimentaryOrders");
+Object.defineProperty(exports, "processComplimentaryOrder", { enumerable: true, get: function () { return complimentaryOrders_1.processComplimentaryOrder; } });
+var complimentaryPlan_1 = require("./complimentaryPlan");
+Object.defineProperty(exports, "adminComplimentaryPlan", { enumerable: true, get: function () { return complimentaryPlan_1.adminComplimentaryPlan; } });
 var pendingGift_1 = require("./pendingGift");
 Object.defineProperty(exports, "cancelPilotGift", { enumerable: true, get: function () { return pendingGift_1.cancelPilotGift; } });
 Object.defineProperty(exports, "resumePilotGiftPayment", { enumerable: true, get: function () { return pendingGift_1.resumePilotGiftPayment; } });
@@ -1320,21 +1323,12 @@ exports.createPilotSetupIntent = (0, sentry_1.onCall)(async (request) => {
     }
     return { clientSecret: setupIntent.client_secret, customerId };
 });
-function familyOrderMatches(expected, given) {
-    if (typeof expected !== 'string' || typeof given !== 'string')
-        return false;
-    const a = expected.trim();
-    const b = given.trim();
-    if (a.length < 16 || a.length !== b.length)
-        return false;
-    return (0, crypto_1.timingSafeEqual)(Buffer.from(a), Buffer.from(b));
-}
 /**
  * Save card (SetupIntent, before this call) + commit address/shipping tier.
  * No PaymentIntent here — one off-session charge at lock/ship (see charge-once-at-ship).
  */
 exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
         throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
@@ -1354,10 +1348,9 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
     const platformCreditCents = typeof hhData.platformCreditCents === 'number' ? hhData.platformCreditCents : 0;
     const lockAt = await getLockAt(false);
     const extensionCheckout = (0, lockWindow_1.isExtensionWindow)(new Date());
-    const familyCheckout = familyOrderMatches((_f = (await db.doc('config/hanukkah-2026').get()).data()) === null || _f === void 0 ? void 0 : _f.familyOrderToken, data.familyOrderToken);
-    const chargeNow = extensionCheckout || (familyCheckout && isLocked(lockAt));
+    const chargeNow = extensionCheckout;
     const orderLockAt = chargeNow ? new Date(Date.now() - 1000).toISOString() : lockAt;
-    if (isLocked(lockAt) && !familyCheckout) {
+    if (isLocked(lockAt)) {
         throw new sentry_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
     }
     const draftSnap = await db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get();
@@ -1365,17 +1358,17 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
         throw new sentry_1.HttpsError('failed-precondition', 'No box draft found. Complete onboarding first.');
     }
     const draft = draftSnap.data();
-    const pilotMerge = await (0, pilotParticipants_1.withPilotLines)(db, householdId, (_g = draft.lineItems) !== null && _g !== void 0 ? _g : []);
+    const pilotMerge = await (0, pilotParticipants_1.withPilotLines)(db, householdId, (_f = draft.lineItems) !== null && _f !== void 0 ? _f : []);
     const lineItems = pilotMerge.lines;
     if (pilotMerge.changed) {
         await draftSnap.ref.update({ lineItems, lastChangeSource: 'pilot', updatedAt: new Date().toISOString() });
     }
     const configSnap = await db.doc('config/hanukkah-2026').get();
-    const configData = (_h = configSnap.data()) !== null && _h !== void 0 ? _h : {};
+    const configData = (_g = configSnap.data()) !== null && _g !== void 0 ? _g : {};
     const { boxPriceCents, kidCount } = await (0, chargePilotBox_1.boxPriceForUser)(db, request.auth.uid, configData);
     const subtotalCents = orderTotalCents(lineItems, boxPriceCents);
     const shippingCents = SHIPPING_FLAT_CENTS;
-    const buyerEmail = String((_l = (_k = (_j = (await db.doc(`users/${request.auth.uid}`).get()).data()) === null || _j === void 0 ? void 0 : _j.email) !== null && _k !== void 0 ? _k : request.auth.token.email) !== null && _l !== void 0 ? _l : '')
+    const buyerEmail = String((_k = (_j = (_h = (await db.doc(`users/${request.auth.uid}`).get()).data()) === null || _h === void 0 ? void 0 : _h.email) !== null && _j !== void 0 ? _j : request.auth.token.email) !== null && _k !== void 0 ? _k : '')
         .trim()
         .toLowerCase() || null;
     const resolvedPromo = await (0, promotions_1.resolveCheckoutPromo)(db, data.promo, buyerEmail);
@@ -1408,7 +1401,7 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
     if (!isPlaythrough) {
         await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems);
     }
-    const estimatedDelivery = (_m = configData.estimatedDeliveryBy) !== null && _m !== void 0 ? _m : '2026-11-24';
+    const estimatedDelivery = (_l = configData.estimatedDeliveryBy) !== null && _l !== void 0 ? _l : '2026-11-24';
     const attribution = (0, metaCapi_1.sanitizeAttribution)(data.attribution);
     const orderRef = ordersRef.doc();
     const hhRef = db.doc(`households/${householdId}`);
@@ -1472,7 +1465,7 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
         promo,
         householdId,
     });
-    await db.doc(`users/${request.auth.uid}`).set(Object.assign(Object.assign(Object.assign({ debriefReminderEligible: true, debriefReminderAttempts: 0, lockReminderEligible: false }, (((_o = data.contactPhone) === null || _o === void 0 ? void 0 : _o.trim()) ? { phone: data.contactPhone.trim() } : {})), (data.smsOptIn === true ? { smsOptIn: true } : {})), { updatedAt: new Date().toISOString() }), { merge: true });
+    await db.doc(`users/${request.auth.uid}`).set(Object.assign(Object.assign(Object.assign({ debriefReminderEligible: true, debriefReminderAttempts: 0, lockReminderEligible: false }, (((_m = data.contactPhone) === null || _m === void 0 ? void 0 : _m.trim()) ? { phone: data.contactPhone.trim() } : {})), (data.smsOptIn === true ? { smsOptIn: true } : {})), { updatedAt: new Date().toISOString() }), { merge: true });
     // Exit signal for the account setup nudge (Untraditional workspace).
     const commitEmail = typeof request.auth.token.email === 'string' ? request.auth.token.email : '';
     if (commitEmail) {
@@ -1498,7 +1491,7 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
         order: orderPayload,
         context: (0, metaCapi_1.metaContextFromCallable)(request),
         email: await emailForMeta(request.auth.uid, request.auth.token.email),
-        phone: ((_p = data.contactPhone) === null || _p === void 0 ? void 0 : _p.trim()) || null,
+        phone: ((_o = data.contactPhone) === null || _o === void 0 ? void 0 : _o.trim()) || null,
     });
     if (!isPlaythrough) {
         await (0, unaffiliated_1.reportUnaffiliatedShippingGeo)({ attribution, shippingAddress, email: commitEmail });
@@ -2267,7 +2260,7 @@ exports.purchasePilotGift = (0, sentry_1.onCall)(async (request) => {
     // Stripe's minimum charge; the recipient still receives the full gift.
     const discountCents = Math.min(applied.discountCents, Math.max(0, creditCents - 50));
     const amountDueCents = creditCents - discountCents;
-    const claimToken = (0, crypto_2.randomBytes)(24).toString('hex');
+    const claimToken = (0, crypto_1.randomBytes)(24).toString('hex');
     const inviteRef = db.collection('giftInvites').doc();
     const metaContext = (0, metaCapi_1.metaContextForDoc)((0, metaCapi_1.metaContextFromCallable)(request));
     const attribution = (0, metaCapi_1.sanitizeAttribution)((_0 = request.data) === null || _0 === void 0 ? void 0 : _0.attribution);
@@ -2386,12 +2379,12 @@ exports.trackMetaEvent = (0, sentry_1.onCall)(async (request) => {
                 (0, metaPracticeCutoff_1.practiceAboveMetaCutoff)(storedPractice, storedFamiliarity);
     }
     if (!suppressBoxBuilt) {
-        await (0, metaCapi_1.sendMetaEvent)(Object.assign({ eventName, eventId: (_m = context.eventId) !== null && _m !== void 0 ? _m : `${eventName === 'BoxBuilt' ? 'boxbuilt' : 'prereg'}_${(0, crypto_2.randomBytes)(8).toString('hex')}`, context, user: { email, externalId: uid } }, (contentName ? { customData: { content_name: contentName } } : {})));
+        await (0, metaCapi_1.sendMetaEvent)(Object.assign({ eventName, eventId: (_m = context.eventId) !== null && _m !== void 0 ? _m : `${eventName === 'BoxBuilt' ? 'boxbuilt' : 'prereg'}_${(0, crypto_1.randomBytes)(8).toString('hex')}`, context, user: { email, externalId: uid } }, (contentName ? { customData: { content_name: contentName } } : {})));
     }
     if (eventName === 'BoxBuilt') {
         await (0, metaCapi_1.sendMetaEvent)({
             eventName: 'BoxFollowUp',
-            eventId: `followup_${(0, crypto_2.randomBytes)(8).toString('hex')}`,
+            eventId: `followup_${(0, crypto_1.randomBytes)(8).toString('hex')}`,
             context,
             user: { email, externalId: uid },
         });
@@ -3212,7 +3205,7 @@ exports.requestBoxDiscountCode = (0, sentry_1.onCall)(async (request) => {
     if (!allAffirmed || statements.length < 1) {
         throw new sentry_1.HttpsError('failed-precondition', 'Please confirm each eligibility statement.');
     }
-    const code = `GJ70-${(0, crypto_2.randomBytes)(3).toString('hex').toUpperCase()}`;
+    const code = `GJ70-${(0, crypto_1.randomBytes)(3).toString('hex').toUpperCase()}`;
     const uid = (_f = (_e = request.auth) === null || _e === void 0 ? void 0 : _e.uid) !== null && _f !== void 0 ? _f : null;
     let householdId = null;
     if (uid) {

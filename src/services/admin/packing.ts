@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../../lib/firebase';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../../lib/firebase";
 
 /** Mirrors functions/src/adminPacking.ts — keep in sync. */
-export type PackingKind = 'box' | 'shop' | 'gift';
-export type PackingSize = '14x14x6' | '14x14x12' | '10x8x6';
+export type PackingKind = "box" | "shop" | "gift" | "comp";
+export type PackingSize = "14x14x6" | "14x14x12" | "10x8x6";
 
 export const PACKING_SIZE_LABEL: Record<PackingSize, string> = {
-  '14x14x6': '14 × 14 × 6 in',
-  '14x14x12': '14 × 14 × 12 in',
-  '10x8x6': '10 × 8 × 6 in',
+  "14x14x6": "14 × 14 × 6 in",
+  "14x14x12": "14 × 14 × 12 in",
+  "10x8x6": "10 × 8 × 6 in",
 };
 
 export type PackingAddress = {
@@ -29,7 +29,7 @@ export type PackingLine = {
   qty: number;
   child: string | null;
   forHousehold: boolean;
-  origin: 'default' | 'changed' | 'added' | null;
+  origin: "default" | "changed" | "added" | null;
   wrap: boolean;
   dimensions: string | null;
   maxInches: number | null;
@@ -69,21 +69,35 @@ export type AdminPackingList = {
 };
 
 export async function fetchAdminPacking(): Promise<AdminPackingList> {
-  const fn = httpsCallable<Record<string, never>, AdminPackingList>(functions, 'getAdminPacking', { timeout: 320_000 });
+  const fn = httpsCallable<Record<string, never>, AdminPackingList>(
+    functions,
+    "getAdminPacking",
+    { timeout: 320_000 },
+  );
   const res = await fn({});
   return res.data;
 }
 
-export async function setPackingLinePacked(packageId: string, lineKey: string, packed: boolean): Promise<void> {
-  const fn = httpsCallable<{ packageId: string; lineKey: string; packed: boolean }, { ok: true }>(
-    functions,
-    'setAdminPackingState',
-  );
+export async function setPackingLinePacked(
+  packageId: string,
+  lineKey: string,
+  packed: boolean,
+): Promise<void> {
+  const fn = httpsCallable<
+    { packageId: string; lineKey: string; packed: boolean },
+    { ok: true }
+  >(functions, "setAdminPackingState");
   await fn({ packageId, lineKey, packed });
 }
 
-export async function setPackingSize(packageId: string, size: PackingSize): Promise<void> {
-  const fn = httpsCallable<{ packageId: string; size: PackingSize }, { ok: true }>(functions, 'setAdminPackingState');
+export async function setPackingSize(
+  packageId: string,
+  size: PackingSize,
+): Promise<void> {
+  const fn = httpsCallable<
+    { packageId: string; size: PackingSize },
+    { ok: true }
+  >(functions, "setAdminPackingState");
   await fn({ packageId, size });
 }
 
@@ -102,7 +116,9 @@ export function useAdminPacking(enabled: boolean) {
       setData(await fetchAdminPacking());
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load packing list');
+      setError(
+        err instanceof Error ? err.message : "Failed to load packing list",
+      );
     } finally {
       inFlight.current = false;
       setRefreshing(false);

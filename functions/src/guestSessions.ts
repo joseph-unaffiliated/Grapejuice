@@ -185,11 +185,9 @@ export async function saveGuestSessionRecord(
 }
 
 /** Callable used by the debounced client sync (src/hooks/useGuestSessionSync.ts). Unauthenticated. */
-export const saveGuestSession = onCall({ memory: '512MiB' }, async (request) => {
-  const data = (request.data ?? {}) as { visitorId?: unknown; snapshot?: unknown };
-  const visitorId = validateVisitorId(data.visitorId);
-  const snapshot = validateSnapshot(data.snapshot);
-  return saveGuestSessionRecord(getFirestore(), visitorId, snapshot, new Date(), geoFromRequest(request.rawRequest));
+export const saveGuestSession = onCall({ memory: '512MiB' }, async () => {
+  // Boxes are locked. Guest boxes are no longer saved.
+  return { ok: true, saved: false };
 });
 
 const BEACON_ORIGINS = [
@@ -206,24 +204,8 @@ const BEACON_ORIGINS = [
  * as the callable; the client never reads the response.
  */
 export const saveGuestSessionBeacon = onRequest({ cors: BEACON_ORIGINS, memory: '512MiB' }, async (req, res) => {
-  if (req.method !== 'POST') {
-    res.status(405).send('Method not allowed');
-    return;
-  }
-  try {
-    const raw = typeof req.body === 'string' ? req.body : req.rawBody?.toString('utf8') ?? '';
-    const parsed = (
-      raw ? JSON.parse(raw) : isRecord(req.body) ? req.body : {}
-    ) as { visitorId?: unknown; snapshot?: unknown };
-    const visitorId = validateVisitorId(parsed.visitorId);
-    const snapshot = validateSnapshot(parsed.snapshot);
-    await saveGuestSessionRecord(getFirestore(), visitorId, snapshot, new Date(), geoFromRequest(req));
-    res.status(204).send('');
-  } catch (err) {
-    const code = err instanceof HttpsError ? 400 : 500;
-    if (code === 500) logger.error('saveGuestSessionBeacon failed', err);
-    res.status(code).send('');
-  }
+  // Boxes are locked. Guest boxes are no longer saved.
+  res.status(204).send('');
 });
 
 /** Strip children's first names from a saved snapshot (the account now holds them). */

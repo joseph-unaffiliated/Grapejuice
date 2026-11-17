@@ -67,7 +67,7 @@ function padKeys(keys, count, prefix) {
     return out;
 }
 function isBoxOrder(o) {
-    return o.orderType !== 'marketplace' && o.orderType !== 'received_gift' && o.playthrough !== true;
+    return o.orderType !== 'marketplace' && o.orderType !== 'received_gift' && o.orderType !== 'complimentary' && o.playthrough !== true;
 }
 /** Signed-out box and gift draft from a guestSessions doc (null when there is none to audit). */
 function guestBoxRefs(path, data) {

@@ -18,33 +18,34 @@ const boxHistoryDiff_1 = require("./boxHistoryDiff");
 const adminDashboard_1 = require("./adminDashboard");
 const shopOrders_1 = require("./shopOrders");
 /**
- * Packing list for the warehouse: paid Hanukkah boxes, paid storefront (shop) orders and paid gift
- * boxes that have a ship-to address. Each package gets a box size and each line gets a shared
- * "packed" checkbox. Size and packed state live in `packingPackages/{packageId}` (admin SDK only).
+ * Packing list for the warehouse: paid Hanukkah boxes, paid storefront (shop) orders, paid gift
+ * boxes that have a ship-to address, and complimentary boxes (with or without an address yet).
+ * Each package gets a box size and each line gets a shared "packed" checkbox. Size and packed
+ * state live in `packingPackages/{packageId}` (admin SDK only).
  *
  * Box orders are only "paid" once charged at lock (status confirmed or later), so they appear after lock.
  * Committed boxes (checkout done, card not charged) are included with `awaitingPayment` so the
  * packing page can preview them behind the "Simulate Post-Lock" toggle. They stay out of the
  * default list.
  */
-const HOLIDAY_ID = 'hanukkah-2026';
-const CHARGED_BOX_STATUSES = ['confirmed', 'shipped', 'delivered'];
+const HOLIDAY_ID = "hanukkah-2026";
+const CHARGED_BOX_STATUSES = ["confirmed", "shipped", "delivered"];
 /** Charged box orders always pack. Committed orders are the post-lock preview. Everything else stays off the list. */
 function packingBoxCharge(status) {
-    const s = String(status !== null && status !== void 0 ? status : '');
+    const s = String(status !== null && status !== void 0 ? status : "");
     if (CHARGED_BOX_STATUSES.includes(s))
-        return 'charged';
-    if (s === 'committed')
-        return 'awaiting';
-    return 'hidden';
+        return "charged";
+    if (s === "committed")
+        return "awaiting";
+    return "hidden";
 }
-const PACKING_COLLECTION = 'packingPackages';
-const PACKAGE_ID = /^(box|shop|gift)_[A-Za-z0-9_-]{1,200}$/;
+const PACKING_COLLECTION = "packingPackages";
+const PACKAGE_ID = /^(box|shop|gift|comp)_[A-Za-z0-9_-]{1,200}$/;
 /** Box sizes in inches. Default for box orders and gifts is 14×14×6; 10×8×6 is for shop orders only; 14×14×12 is picked by hand when flagged. */
 exports.PACKING_SIZES = {
-    '14x14x6': { label: '14 × 14 × 6 in' },
-    '14x14x12': { label: '14 × 14 × 12 in' },
-    '10x8x6': { label: '10 × 8 × 6 in' },
+    "14x14x6": { label: "14 × 14 × 6 in" },
+    "14x14x12": { label: "14 × 14 × 12 in" },
+    "10x8x6": { label: "10 × 8 × 6 in" },
 };
 const PACKING_SIZE_KEYS = Object.keys(exports.PACKING_SIZES);
 /** '3 lb' → 48, '6 oz' → 6. Null when the catalog weight is blank or not a number. */
@@ -52,14 +53,17 @@ function parseWeightOunces(raw) {
     var _a;
     if (!raw)
         return null;
-    const match = raw.trim().toLowerCase().match(/(\d+(?:\.\d+)?)\s*(lb|lbs|pound|pounds|oz|ounce|ounces)?/);
+    const match = raw
+        .trim()
+        .toLowerCase()
+        .match(/(\d+(?:\.\d+)?)\s*(lb|lbs|pound|pounds|oz|ounce|ounces)?/);
     if (!match)
         return null;
     const n = Number(match[1]);
     if (!Number.isFinite(n) || n < 0)
         return null;
-    const unit = (_a = match[2]) !== null && _a !== void 0 ? _a : '';
-    if (unit.startsWith('lb') || unit.startsWith('pound'))
+    const unit = (_a = match[2]) !== null && _a !== void 0 ? _a : "";
+    if (unit.startsWith("lb") || unit.startsWith("pound"))
         return n * 16;
     return n;
 }
@@ -69,29 +73,29 @@ function parseWeightOunces(raw) {
  */
 function estimateWeightOunces(item) {
     var _a, _b;
-    const cat = ((_a = item.category) !== null && _a !== void 0 ? _a : '').toLowerCase();
+    const cat = ((_a = item.category) !== null && _a !== void 0 ? _a : "").toLowerCase();
     const name = item.name.toLowerCase();
-    const id = ((_b = item.itemId) !== null && _b !== void 0 ? _b : '').toLowerCase();
-    if (cat === 'book' || id.startsWith('book-'))
+    const id = ((_b = item.itemId) !== null && _b !== void 0 ? _b : "").toLowerCase();
+    if (cat === "book" || id.startsWith("book-"))
         return 12;
-    if (cat === 'dreidel')
-        return name.includes('brass') ? 8 : 2;
-    if (cat === 'menorah')
+    if (cat === "dreidel")
+        return name.includes("brass") ? 8 : 2;
+    if (cat === "menorah")
         return 24;
-    if (cat === 'candles')
+    if (cat === "candles")
         return 8;
-    if (cat === 'gelt') {
-        if (name.includes('party'))
+    if (cat === "gelt") {
+        if (name.includes("party"))
             return 32;
-        if (name.includes('big bag'))
+        if (name.includes("big bag"))
             return 12;
         return 4;
     }
-    if (cat === 'food')
+    if (cat === "food")
         return 16;
-    if (cat === 'stuffies')
+    if (cat === "stuffies")
         return 6;
-    if (cat === 'toys')
+    if (cat === "toys")
         return 12;
     return 8;
 }
@@ -104,20 +108,22 @@ function weightForLine(item) {
 function categoryOf(itemId, meta) {
     if (meta === null || meta === void 0 ? void 0 : meta.category)
         return meta.category;
-    if (itemId === null || itemId === void 0 ? void 0 : itemId.startsWith('book-'))
-        return 'Book';
-    return 'Other';
+    if (itemId === null || itemId === void 0 ? void 0 : itemId.startsWith("book-"))
+        return "Book";
+    return "Other";
 }
-const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
-const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-const isRecord = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
-const strList = (v) => Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.length > 0) : [];
+const str = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+const num = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+const isRecord = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+const strList = (v) => Array.isArray(v)
+    ? v.filter((x) => typeof x === "string" && x.length > 0)
+    : [];
 function iso(v) {
     if (!v)
         return null;
-    if (typeof v === 'string')
+    if (typeof v === "string")
         return v;
-    if (typeof v.toDate === 'function')
+    if (typeof v.toDate === "function")
         return v.toDate().toISOString();
     return null;
 }
@@ -129,8 +135,10 @@ function score(v) {
 function maxDimensionInches(raw) {
     if (!raw)
         return null;
-    const main = raw.split('(')[0];
-    const nums = [...main.matchAll(/\d+(?:\.\d+)?/g)].map((m) => Number(m[0])).slice(0, 3);
+    const main = raw.split("(")[0];
+    const nums = [...main.matchAll(/\d+(?:\.\d+)?/g)]
+        .map((m) => Number(m[0]))
+        .slice(0, 3);
     return nums.length ? Math.max(...nums) : null;
 }
 function addressOf(raw) {
@@ -144,15 +152,15 @@ function addressOf(raw) {
         name: str(raw.name),
         line1,
         line2: str(raw.line2),
-        city: (_a = str(raw.city)) !== null && _a !== void 0 ? _a : '',
-        stateProvince: (_b = str(raw.stateProvince)) !== null && _b !== void 0 ? _b : '',
-        postalCode: (_c = str(raw.postalCode)) !== null && _c !== void 0 ? _c : '',
+        city: (_a = str(raw.city)) !== null && _a !== void 0 ? _a : "",
+        stateProvince: (_b = str(raw.stateProvince)) !== null && _b !== void 0 ? _b : "",
+        postalCode: (_c = str(raw.postalCode)) !== null && _c !== void 0 ? _c : "",
         country: str(raw.country),
     };
 }
-/** Recommended box: shop orders use 10×8×6; boxes and gifts use 14×14×6. Packers pick a bigger box from the flag. */
+/** Recommended box: shop orders use 10×8×6; boxes, gifts and comps use 14×14×6. Packers pick a bigger box from the flag. */
 function recommendedSizeFor(kind) {
-    return kind === 'shop' ? '10x8x6' : '14x14x6';
+    return kind === "shop" ? "10x8x6" : "14x14x6";
 }
 /** An item longer than this (inches, largest dimension) can't fit a 10×8×6 or 14×14×6 box lying flat. */
 exports.LARGE_BOX_ITEM_INCHES = 12;
@@ -164,14 +172,15 @@ exports.LARGE_BOX_UNITS = 18;
 /** Flag for the packer: an item is too long for the box, or the package holds a lot of units. */
 function mayNeedLargeBox(lines) {
     const units = lines.reduce((sum, l) => sum + l.qty, 0);
-    return units > exports.LARGE_BOX_UNITS || lines.some((l) => { var _a; return ((_a = l.maxInches) !== null && _a !== void 0 ? _a : 0) > exports.LARGE_BOX_ITEM_INCHES; });
+    return (units > exports.LARGE_BOX_UNITS ||
+        lines.some((l) => { var _a; return ((_a = l.maxInches) !== null && _a !== void 0 ? _a : 0) > exports.LARGE_BOX_ITEM_INCHES; }));
 }
 function buildLines(args) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     const seen = new Map();
     const out = [];
     for (const raw of Array.isArray(args.raw) ? args.raw : []) {
-        if (!raw || typeof raw !== 'object')
+        if (!raw || typeof raw !== "object")
             continue;
         const li = raw;
         const qty = Math.max(0, Math.floor(Number(li.quantity) || 0));
@@ -180,9 +189,14 @@ function buildLines(args) {
         const itemId = str(li.itemId);
         const childId = str(li.childId);
         const meta = itemId ? args.items.get(itemId) : undefined;
-        const name = (_c = (_b = (_a = meta === null || meta === void 0 ? void 0 : meta.name) !== null && _a !== void 0 ? _a : str(li.label)) !== null && _b !== void 0 ? _b : itemId) !== null && _c !== void 0 ? _c : '?';
-        const weight = weightForLine({ weight: (_d = meta === null || meta === void 0 ? void 0 : meta.weight) !== null && _d !== void 0 ? _d : null, category: (_e = meta === null || meta === void 0 ? void 0 : meta.category) !== null && _e !== void 0 ? _e : null, name, itemId });
-        const base = `${(_f = itemId !== null && itemId !== void 0 ? itemId : str(li.label)) !== null && _f !== void 0 ? _f : '?'}|${childId !== null && childId !== void 0 ? childId : 'household'}`;
+        const name = (_c = (_b = (_a = meta === null || meta === void 0 ? void 0 : meta.name) !== null && _a !== void 0 ? _a : str(li.label)) !== null && _b !== void 0 ? _b : itemId) !== null && _c !== void 0 ? _c : "?";
+        const weight = weightForLine({
+            weight: (_d = meta === null || meta === void 0 ? void 0 : meta.weight) !== null && _d !== void 0 ? _d : null,
+            category: (_e = meta === null || meta === void 0 ? void 0 : meta.category) !== null && _e !== void 0 ? _e : null,
+            name,
+            itemId,
+        });
+        const base = `${(_f = itemId !== null && itemId !== void 0 ? itemId : str(li.label)) !== null && _f !== void 0 ? _f : "?"}|${childId !== null && childId !== void 0 ? childId : "household"}`;
         const n = (_g = seen.get(base)) !== null && _g !== void 0 ? _g : 0;
         seen.set(base, n + 1);
         out.push({
@@ -190,7 +204,7 @@ function buildLines(args) {
             itemId,
             name,
             qty,
-            child: childId ? (_h = args.childName(childId)) !== null && _h !== void 0 ? _h : 'Child' : null,
+            child: childId ? ((_h = args.childName(childId)) !== null && _h !== void 0 ? _h : "Child") : null,
             forHousehold: !childId,
             origin: (0, adminDashboard_1.lineOriginVsDefault)(li, args.defaults),
             wrap: Boolean(itemId && args.wrap.has(itemId)),
@@ -209,13 +223,14 @@ async function getAllSafe(db, refs) {
     return refs.length ? db.getAll(...refs) : [];
 }
 async function buildAdminPackingList(db, nowMs = Date.now()) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16;
-    const [ordersSnap, invitesSnap, receivedSnap, itemsSnap, childrenSnap] = await Promise.all([
-        db.collectionGroup('orders').get(),
-        db.collection('giftInvites').get(),
-        db.collectionGroup('receivedGifts').get(),
-        db.collection('catalog/hanukkah/items').get(),
-        db.collectionGroup('children').get(),
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17;
+    const [ordersSnap, invitesSnap, receivedSnap, itemsSnap, childrenSnap, compSnap,] = await Promise.all([
+        db.collectionGroup("orders").get(),
+        db.collection("giftInvites").get(),
+        db.collectionGroup("receivedGifts").get(),
+        db.collection("catalog/hanukkah/items").get(),
+        db.collectionGroup("children").get(),
+        db.collection("complimentaryPeople").get(),
     ]);
     const items = new Map();
     for (const d of itemsSnap.docs) {
@@ -233,10 +248,10 @@ async function buildAdminPackingList(db, nowMs = Date.now()) {
     const childrenByOwner = new Map();
     for (const d of childrenSnap.docs) {
         const owner = d.ref.parent.parent;
-        if (!owner || owner.parent.id !== 'users')
+        if (!owner || owner.parent.id !== "users")
             continue;
         const x = d.data();
-        const age = typeof x.plannerAge === 'number' && Number.isFinite(x.plannerAge)
+        const age = typeof x.plannerAge === "number" && Number.isFinite(x.plannerAge)
             ? String(Math.max(0, Math.floor(x.plannerAge)))
             : str(x.ageGroup);
         const info = { name: str(x.name), age };
@@ -249,7 +264,7 @@ async function buildAdminPackingList(db, nowMs = Date.now()) {
     const receivedByKey = new Map();
     for (const d of receivedSnap.docs) {
         const hh = d.ref.parent.parent;
-        if (hh && hh.parent.id === 'households')
+        if (hh && hh.parent.id === "households")
             receivedByKey.set(`${hh.id}/${d.id}`, d.data());
     }
     const boxRows = [];
@@ -257,27 +272,37 @@ async function buildAdminPackingList(db, nowMs = Date.now()) {
     const liveGiftOrderByInvite = new Map();
     for (const d of ordersSnap.docs) {
         const o = d.data();
-        const hid = (_d = (_c = d.ref.parent.parent) === null || _c === void 0 ? void 0 : _c.id) !== null && _d !== void 0 ? _d : '';
+        const hid = (_d = (_c = d.ref.parent.parent) === null || _c === void 0 ? void 0 : _c.id) !== null && _d !== void 0 ? _d : "";
         if (!hid || o.playthrough === true)
             continue;
-        if (o.orderType === 'received_gift') {
+        if (o.orderType === "received_gift") {
             const inviteId = str(o.giftInviteId);
-            if (inviteId && o.holidayId === HOLIDAY_ID && packingBoxCharge(o.status) === 'charged') {
+            if (inviteId &&
+                o.holidayId === HOLIDAY_ID &&
+                packingBoxCharge(o.status) === "charged") {
                 liveGiftOrderByInvite.set(inviteId, o);
             }
             continue;
         }
-        if (o.orderType === 'marketplace') {
+        if (o.orderType === "marketplace") {
             // Paid, not cancelled or fully refunded (a cancelled order with a confirmed date still shows as paid elsewhere).
             const state = (0, shopOrders_1.shopOrderState)(o);
-            if (state.paid && state.status !== 'refunded' && state.status !== 'cancelled')
+            if (state.paid &&
+                state.status !== "refunded" &&
+                state.status !== "cancelled")
                 shopRows.push({ hid, id: d.id, o });
             continue;
         }
-        const isBox = o.orderType === 'hanukkah_box' || (!o.orderType && o.holidayId === HOLIDAY_ID);
+        const isBox = o.orderType === "hanukkah_box" ||
+            (!o.orderType && o.holidayId === HOLIDAY_ID);
         const charge = packingBoxCharge(o.status);
-        if (isBox && o.holidayId === HOLIDAY_ID && charge !== 'hidden') {
-            boxRows.push({ hid, id: d.id, o, awaitingPayment: charge === 'awaiting' });
+        if (isBox && o.holidayId === HOLIDAY_ID && charge !== "hidden") {
+            boxRows.push({
+                hid,
+                id: d.id,
+                o,
+                awaitingPayment: charge === "awaiting",
+            });
         }
     }
     // Per-household reads for the paid boxes: household (owner fallback), draft (wrap fallback), default build.
@@ -324,7 +349,7 @@ async function buildAdminPackingList(db, nowMs = Date.now()) {
         const user = uid ? usersById.get(uid) : undefined;
         const last = (_m = user === null || user === void 0 ? void 0 : user.last) !== null && _m !== void 0 ? _m : {};
         const wrap = new Set(strList((_o = r.o.wrapSelectedItemIds) !== null && _o !== void 0 ? _o : (_p = draftByHid.get(r.hid)) === null || _p === void 0 ? void 0 : _p.wrapSelectedItemIds));
-        const kids = uid ? (_q = childrenByOwner.get(uid)) !== null && _q !== void 0 ? _q : [] : [];
+        const kids = uid ? ((_q = childrenByOwner.get(uid)) !== null && _q !== void 0 ? _q : []) : [];
         const shipping = addressOf(r.o.shippingAddress);
         const lines = buildLines({
             raw: r.o.lineItems,
@@ -335,8 +360,8 @@ async function buildAdminPackingList(db, nowMs = Date.now()) {
         });
         packages.push({
             id: `box_${r.hid}_${r.id}`,
-            kind: 'box',
-            status: (_s = str(r.o.status)) !== null && _s !== void 0 ? _s : 'unknown',
+            kind: "box",
+            status: (_s = str(r.o.status)) !== null && _s !== void 0 ? _s : "unknown",
             reference: `Order ${r.id.slice(0, 8).toUpperCase()}`,
             recipient: (_u = (_t = shipping === null || shipping === void 0 ? void 0 : shipping.name) !== null && _t !== void 0 ? _t : user === null || user === void 0 ? void 0 : user.name) !== null && _u !== void 0 ? _u : null,
             email: (_w = (_v = str(r.o.guestEmail)) !== null && _v !== void 0 ? _v : user === null || user === void 0 ? void 0 : user.email) !== null && _w !== void 0 ? _w : null,
@@ -349,27 +374,34 @@ async function buildAdminPackingList(db, nowMs = Date.now()) {
                 jewish: score(last.practiceFrequencyScore),
             },
             note: (_0 = str(last.ravNotes)) !== null && _0 !== void 0 ? _0 : null,
-            recommendedSize: '14x14x6',
+            recommendedSize: "14x14x6",
             awaitingPayment: r.awaitingPayment === true,
             lines,
         });
     }
     for (const d of invitesSnap.docs) {
         const g = d.data();
-        const isBox = g.kind === 'box' || g.kind === 'credit' ? g.kind === 'box' : Array.isArray(g.lineItems) && g.lineItems.length > 0;
-        if (!isBox || g.playthrough === true || g.status === 'converted_to_credit')
+        const isBox = g.kind === "box" || g.kind === "credit"
+            ? g.kind === "box"
+            : Array.isArray(g.lineItems) && g.lineItems.length > 0;
+        if (!isBox || g.playthrough === true || g.status === "converted_to_credit")
             continue;
-        const paid = g.paymentStatus === 'paid' || (g.paymentStatus == null && Boolean(g.claimEmailSentAt));
+        const paid = g.paymentStatus === "paid" ||
+            (g.paymentStatus == null && Boolean(g.claimEmailSentAt));
         if (!paid)
             continue;
         const claimedHid = str(g.claimedByHouseholdId);
-        const rec = claimedHid ? receivedByKey.get(`${claimedHid}/${d.id}`) : undefined;
+        const rec = claimedHid
+            ? receivedByKey.get(`${claimedHid}/${d.id}`)
+            : undefined;
         const liveOrder = liveGiftOrderByInvite.get(d.id);
         const shipping = (_1 = addressOf(liveOrder === null || liveOrder === void 0 ? void 0 : liveOrder.shippingAddress)) !== null && _1 !== void 0 ? _1 : addressOf(g.shippingAddress);
         // Ship only when there is an address; QA gifts without one are skipped.
         if (!shipping)
             continue;
-        const rawLines = liveOrder && Array.isArray(liveOrder.lineItems) ? liveOrder.lineItems : (_2 = rec === null || rec === void 0 ? void 0 : rec.lineItems) !== null && _2 !== void 0 ? _2 : g.lineItems;
+        const rawLines = liveOrder && Array.isArray(liveOrder.lineItems)
+            ? liveOrder.lineItems
+            : ((_2 = rec === null || rec === void 0 ? void 0 : rec.lineItems) !== null && _2 !== void 0 ? _2 : g.lineItems);
         const wrap = new Set(strList((_4 = (_3 = liveOrder === null || liveOrder === void 0 ? void 0 : liveOrder.wrapSelectedItemIds) !== null && _3 !== void 0 ? _3 : rec === null || rec === void 0 ? void 0 : rec.wrapSelectedItemIds) !== null && _4 !== void 0 ? _4 : g.wrapSelectedItemIds));
         const lines = buildLines({
             raw: rawLines,
@@ -378,11 +410,11 @@ async function buildAdminPackingList(db, nowMs = Date.now()) {
             defaults: null,
             wrap,
         });
-        const giver = (_6 = (_5 = str(g.giverName)) !== null && _5 !== void 0 ? _5 : str(g.giverEmail)) !== null && _6 !== void 0 ? _6 : 'a giver';
+        const giver = (_6 = (_5 = str(g.giverName)) !== null && _5 !== void 0 ? _5 : str(g.giverEmail)) !== null && _6 !== void 0 ? _6 : "a giver";
         packages.push({
             id: `gift_${d.id}`,
-            kind: 'gift',
-            status: (_7 = str(g.status)) !== null && _7 !== void 0 ? _7 : 'unknown',
+            kind: "gift",
+            status: (_7 = str(g.status)) !== null && _7 !== void 0 ? _7 : "unknown",
             reference: `Gift from ${giver}`,
             recipient: (_9 = (_8 = shipping.name) !== null && _8 !== void 0 ? _8 : str(g.recipientName)) !== null && _9 !== void 0 ? _9 : str(g.recipientEmail),
             email: str(g.recipientEmail),
@@ -392,13 +424,15 @@ async function buildAdminPackingList(db, nowMs = Date.now()) {
             kids: [],
             sliders: emptySliders,
             note: str(g.message),
-            recommendedSize: '14x14x6',
+            recommendedSize: "14x14x6",
             awaitingPayment: false,
             lines,
         });
     }
     for (const r of shopRows) {
-        const user = str(r.o.userId) ? usersById.get(str(r.o.userId)) : undefined;
+        const user = str(r.o.userId)
+            ? usersById.get(str(r.o.userId))
+            : undefined;
         const shipping = addressOf(r.o.shippingAddress);
         const email = (_12 = (_11 = str(r.o.guestEmail)) !== null && _11 !== void 0 ? _11 : user === null || user === void 0 ? void 0 : user.email) !== null && _12 !== void 0 ? _12 : str((_13 = r.o.shippingAddress) === null || _13 === void 0 ? void 0 : _13.email);
         const lines = buildLines({
@@ -410,7 +444,7 @@ async function buildAdminPackingList(db, nowMs = Date.now()) {
         });
         packages.push({
             id: `shop_${r.hid}_${r.id}`,
-            kind: 'shop',
+            kind: "shop",
             status: (0, shopOrders_1.shopOrderState)(r.o).status,
             reference: `Order ${r.id.slice(0, 8).toUpperCase()}`,
             recipient: (_15 = (_14 = shipping === null || shipping === void 0 ? void 0 : shipping.name) !== null && _14 !== void 0 ? _14 : user === null || user === void 0 ? void 0 : user.name) !== null && _15 !== void 0 ? _15 : null,
@@ -421,7 +455,57 @@ async function buildAdminPackingList(db, nowMs = Date.now()) {
             kids: [],
             sliders: emptySliders,
             note: null,
-            recommendedSize: recommendedSizeFor('shop'),
+            recommendedSize: recommendedSizeFor("shop"),
+            awaitingPayment: false,
+            lines,
+        });
+    }
+    for (const d of compSnap.docs) {
+        const p = d.data();
+        const lines = buildLines({
+            raw: p.lineItems,
+            items,
+            childName: () => null,
+            defaults: null,
+            wrap: new Set(),
+        });
+        if (!lines.length)
+            continue;
+        const shipping = addressOf(p.shippingAddress);
+        const name = str(p.name);
+        const email = isRecord(p.shippingAddress)
+            ? str(p.shippingAddress.email)
+            : null;
+        const labeled = typeof p.shipStationExportedAt === "string";
+        const failed = typeof p.shipStationError === "string" &&
+            p.shipStationError.length > 0 &&
+            !labeled;
+        const handDeliver = p.handDeliver === true;
+        const canada = p.canada === true || (shipping === null || shipping === void 0 ? void 0 : shipping.country) === "CA";
+        packages.push({
+            id: `comp_${d.id}`,
+            kind: "comp",
+            status: handDeliver
+                ? "hand deliver"
+                : canada
+                    ? "Canada, no label"
+                    : labeled
+                        ? "labeled"
+                        : failed
+                            ? "label failed"
+                            : shipping
+                                ? "ready"
+                                : "needs address",
+            reference: "Complimentary",
+            recipient: (_17 = shipping === null || shipping === void 0 ? void 0 : shipping.name) !== null && _17 !== void 0 ? _17 : name,
+            email,
+            test: (0, testAccounts_1.isTest)(email, name, shipping === null || shipping === void 0 ? void 0 : shipping.name),
+            paidAt: iso(p.createdAt),
+            destination: shipping,
+            kids: [],
+            sliders: emptySliders,
+            note: null,
+            recommendedSize: recommendedSizeFor("comp"),
             awaitingPayment: false,
             lines,
         });
@@ -433,58 +517,62 @@ async function buildAdminPackingList(db, nowMs = Date.now()) {
         var _a;
         const state = (_a = storedById.get(p.id)) !== null && _a !== void 0 ? _a : {};
         const packedMap = isRecord(state.packed) ? state.packed : {};
-        const picked = typeof state.size === 'string' && PACKING_SIZE_KEYS.includes(state.size)
+        const picked = typeof state.size === "string" &&
+            PACKING_SIZE_KEYS.includes(state.size)
             ? state.size
             : null;
         const lines = p.lines.map((l) => (Object.assign(Object.assign({}, l), { packed: packedMap[l.key] === true })));
         return Object.assign(Object.assign({}, p), { lines, mayNeedLargeBox: mayNeedLargeBox(lines), size: picked !== null && picked !== void 0 ? picked : p.recommendedSize, sizeSet: picked != null });
     });
-    out.sort((a, b) => { var _a, _b; return ((_a = a.paidAt) !== null && _a !== void 0 ? _a : '').localeCompare((_b = b.paidAt) !== null && _b !== void 0 ? _b : ''); });
+    out.sort((a, b) => { var _a, _b; return ((_a = a.paidAt) !== null && _a !== void 0 ? _a : "").localeCompare((_b = b.paidAt) !== null && _b !== void 0 ? _b : ""); });
     return { generatedAt: new Date(nowMs).toISOString(), packages: out };
 }
 const PACKING_CALL_OPTS = {
     timeoutSeconds: 300,
-    memory: '1GiB',
+    memory: "1GiB",
 };
 function createAdminPacking(db) {
     const getAdminPacking = (0, sentry_1.onCall)(PACKING_CALL_OPTS, async (request) => {
         var _a;
         if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-            throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
+            throw new sentry_1.HttpsError("unauthenticated", "Must be signed in.");
         if (!(0, guestSessions_1.isAdminToken)(request.auth.token))
-            throw new sentry_1.HttpsError('permission-denied', 'Admin only.');
+            throw new sentry_1.HttpsError("permission-denied", "Admin only.");
         return buildAdminPackingList(db);
     });
     /** Set a line's packed flag, or a package's box size. Shared across admins. */
     const setAdminPackingState = (0, sentry_1.onCall)(PACKING_CALL_OPTS, async (request) => {
         var _a, _b, _c;
         if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-            throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
+            throw new sentry_1.HttpsError("unauthenticated", "Must be signed in.");
         if (!(0, guestSessions_1.isAdminToken)(request.auth.token))
-            throw new sentry_1.HttpsError('permission-denied', 'Admin only.');
+            throw new sentry_1.HttpsError("permission-denied", "Admin only.");
         const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
-        const packageId = typeof data.packageId === 'string' ? data.packageId : '';
+        const packageId = typeof data.packageId === "string" ? data.packageId : "";
         if (!PACKAGE_ID.test(packageId))
-            throw new sentry_1.HttpsError('invalid-argument', 'Unknown package.');
+            throw new sentry_1.HttpsError("invalid-argument", "Unknown package.");
         const update = {
             updatedAt: firestore_1.FieldValue.serverTimestamp(),
             updatedBy: (_c = request.auth.token.email) !== null && _c !== void 0 ? _c : request.auth.uid,
         };
-        const lineKey = typeof data.lineKey === 'string' ? data.lineKey : '';
+        const lineKey = typeof data.lineKey === "string" ? data.lineKey : "";
         if (lineKey) {
             if (lineKey.length > 300)
-                throw new sentry_1.HttpsError('invalid-argument', 'Line key too long.');
+                throw new sentry_1.HttpsError("invalid-argument", "Line key too long.");
             update.packed = { [lineKey]: data.packed === true };
         }
         if (data.size !== undefined) {
-            if (typeof data.size !== 'string' || !PACKING_SIZE_KEYS.includes(data.size)) {
-                throw new sentry_1.HttpsError('invalid-argument', 'Unknown box size.');
+            if (typeof data.size !== "string" ||
+                !PACKING_SIZE_KEYS.includes(data.size)) {
+                throw new sentry_1.HttpsError("invalid-argument", "Unknown box size.");
             }
             update.size = data.size;
         }
         if (!lineKey && data.size === undefined)
-            throw new sentry_1.HttpsError('invalid-argument', 'Nothing to update.');
-        await db.doc(`${PACKING_COLLECTION}/${packageId}`).set(update, { merge: true });
+            throw new sentry_1.HttpsError("invalid-argument", "Nothing to update.");
+        await db
+            .doc(`${PACKING_COLLECTION}/${packageId}`)
+            .set(update, { merge: true });
         return { ok: true };
     });
     return { getAdminPacking, setAdminPackingState };

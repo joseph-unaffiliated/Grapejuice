@@ -1,4 +1,3 @@
-import { timingSafeEqual } from 'crypto';
 import * as logger from './logger';
 import { isPlaythroughTestEmail } from './testAccounts';
 import { practiceAboveMetaCutoff } from './metaPracticeCutoff';
@@ -107,6 +106,8 @@ export { recordGiftStep } from './giftFunnel';
 export { recordCheckoutStep } from './checkoutFunnel';
 export { restorePilotBoxOrder } from './orderRestore';
 export { processBoxAdjustment } from './boxAdjustment';
+export { processComplimentaryOrder } from './complimentaryOrders';
+export { adminComplimentaryPlan } from './complimentaryPlan';
 export { cancelPilotGift, resumePilotGiftPayment } from './pendingGift';
 export { revealBoxWithEmail, signInGiftGiver, requestLoginLink, redeemLoginLink, requestLoginCode, redeemLoginCode } from './loginLinks';
 import {
@@ -1644,14 +1645,6 @@ export const createPilotSetupIntent = onCall(async (request) => {
   return { clientSecret: setupIntent.client_secret, customerId };
 });
 
-function familyOrderMatches(expected: unknown, given: unknown): boolean {
-  if (typeof expected !== 'string' || typeof given !== 'string') return false;
-  const a = expected.trim();
-  const b = given.trim();
-  if (a.length < 16 || a.length !== b.length) return false;
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
-}
-
 /**
  * Save card (SetupIntent, before this call) + commit address/shipping tier.
  * No PaymentIntent here — one off-session charge at lock/ship (see charge-once-at-ship).
@@ -1679,13 +1672,9 @@ export const commitPilotBox = onCall(async (request) => {
 
   const lockAt = await getLockAt(false);
   const extensionCheckout = isExtensionWindow(new Date());
-  const familyCheckout = familyOrderMatches(
-    (await db.doc('config/hanukkah-2026').get()).data()?.familyOrderToken,
-    data.familyOrderToken
-  );
-  const chargeNow = extensionCheckout || (familyCheckout && isLocked(lockAt));
+  const chargeNow = extensionCheckout;
   const orderLockAt = chargeNow ? new Date(Date.now() - 1000).toISOString() : lockAt;
-  if (isLocked(lockAt) && !familyCheckout) {
+  if (isLocked(lockAt)) {
     throw new HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
   }
 

@@ -140,7 +140,7 @@ async function householdsWithSecuredBox(db: Firestore): Promise<Set<string>> {
       .get();
     for (const d of snap.docs) {
       const o = d.data();
-      if (o.orderType === 'marketplace' || o.orderType === 'received_gift' || o.playthrough === true) continue;
+      if (o.orderType === 'marketplace' || o.orderType === 'received_gift' || o.orderType === 'complimentary' || o.playthrough === true) continue;
       const hh = d.ref.parent.parent;
       if (hh?.parent.id === 'households') secured.add(hh.id);
     }

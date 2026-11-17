@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,25 +8,33 @@ import {
   TouchableOpacity,
   Platform,
   type ViewStyle,
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
-import { countsAsLowPractice } from '../../services/analytics/metaServerEvents';
-import { useAuthStore } from '../../stores/authStore';
-import { isOpsAdmin } from '../../constants/admin';
-import { WebContentPanel } from '../../components/layout/WebContentPanel';
-import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
-import { useViewportPinnedHeight } from '../../components/storefront/storefrontViewport';
-import { useThemeMode } from '../../context/ThemeContext';
-import { useMobileLayout } from '../../hooks/useMobileLayout';
-import { useWebLayout } from '../../hooks/useWebLayout';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { m, mFont, mGutter } from '../../components/mobile/mobileTheme';
-import { paintOpsMobile } from './opsMobileSkin';
-import { AdminProgramTab } from './AdminProgramTab';
-import { spacing, typography, borderRadius, typeface, shadows, shadowsWeb } from '../../constants/theme';
-import type { SemanticColors } from '../../constants/themeMode';
-import type { MainStackParamList } from '../../navigation/types';
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import { countsAsLowPractice } from "../../services/analytics/metaServerEvents";
+import { useAuthStore } from "../../stores/authStore";
+import { isOpsAdmin } from "../../constants/admin";
+import { WebContentPanel } from "../../components/layout/WebContentPanel";
+import { BrandLoadingMark } from "../../components/brand/BrandLoadingMark";
+import { useViewportPinnedHeight } from "../../components/storefront/storefrontViewport";
+import { useThemeMode } from "../../context/ThemeContext";
+import { useMobileLayout } from "../../hooks/useMobileLayout";
+import { useWebLayout } from "../../hooks/useWebLayout";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { m, mFont, mGutter } from "../../components/mobile/mobileTheme";
+import { paintOpsMobile } from "./opsMobileSkin";
+import { AdminProgramTab } from "./AdminProgramTab";
+import { AdminCompsTab } from "./AdminCompsTab";
+import {
+  spacing,
+  typography,
+  borderRadius,
+  typeface,
+  shadows,
+  shadowsWeb,
+} from "../../constants/theme";
+import type { SemanticColors } from "../../constants/themeMode";
+import type { MainStackParamList } from "../../navigation/types";
 import {
   DASHBOARD_REFRESH_MS,
   applyBoxProblemFix,
@@ -49,14 +57,15 @@ import {
   type DashShopOrder,
   type GiftFunnelKey,
   type MetaAdStats,
-} from '../../services/admin/boxesDashboard';
-import { copyText } from '../../services/promo/copyText';
+} from "../../services/admin/boxesDashboard";
+import { copyText } from "../../services/promo/copyText";
 
 type Nav = StackNavigationProp<MainStackParamList>;
 type Styles = ReturnType<typeof createStyles>;
-type Tone = 'success' | 'warning' | 'danger' | 'info' | 'gold' | 'neutral' | undefined;
+type Tone =
+  "success" | "warning" | "danger" | "info" | "gold" | "neutral" | undefined;
 
-const LIVE = ['pending', 'committed', 'confirmed', 'shipped', 'delivered'];
+const LIVE = ["pending", "committed", "confirmed", "shipped", "delivered"];
 const LOW_THRESHOLD = 2;
 
 type InventoryView = DashInventoryRow & {
@@ -66,21 +75,21 @@ type InventoryView = DashInventoryRow & {
 };
 
 function money(cents: number | null | undefined): string {
-  if (cents == null) return '—';
+  if (cents == null) return "—";
   const d = cents / 100;
-  return `$${d.toLocaleString('en-US', { minimumFractionDigits: d % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+  return `$${d.toLocaleString("en-US", { minimumFractionDigits: d % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 }
 
 function when(isoStr: string | null | undefined): string {
-  if (!isoStr) return '—';
+  if (!isoStr) return "—";
   const d = new Date(isoStr);
   if (Number.isNaN(d.getTime())) return isoStr;
-  return d.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'America/New_York',
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
   });
 }
 
@@ -90,8 +99,16 @@ function ago(isoStr: string, now: number): string {
   return `${Math.round(s / 60)}m ago`;
 }
 
-const LEVEL_SCORE: Record<string, number> = { minimal: 15, moderate: 50, 'all-in': 85 };
-const LEVEL_LABEL: Record<string, string> = { minimal: 'Minimal', moderate: 'Moderate', 'all-in': 'All-in' };
+const LEVEL_SCORE: Record<string, number> = {
+  minimal: 15,
+  moderate: 50,
+  "all-in": 85,
+};
+const LEVEL_LABEL: Record<string, string> = {
+  minimal: "Minimal",
+  moderate: "Moderate",
+  "all-in": "All-in",
+};
 const ANSWERS_CAPTION =
   'Hanukkah = "How has Hanukkah looked in recent years?" (0 we don’t really do it, 100 all eight nights). Jewish = "How often do you do Jewish stuff?" (0 almost never, 100 every day). Older accounts only saved a Hanukkah level; — means not answered.';
 
@@ -99,57 +116,66 @@ const ANSWERS_CAPTION =
 function answerColumns<T>(get: (row: T) => DashAnswers): Column<T>[] {
   return [
     {
-      label: 'Hanukkah',
+      label: "Hanukkah",
       width: 80,
-      align: 'right',
+      align: "right",
       cell: (r) => {
         const a = get(r);
         if (a.hanukkah != null) return String(a.hanukkah);
-        return a.hanukkahLevel ? LEVEL_LABEL[a.hanukkahLevel] ?? a.hanukkahLevel : '—';
+        return a.hanukkahLevel
+          ? (LEVEL_LABEL[a.hanukkahLevel] ?? a.hanukkahLevel)
+          : "—";
       },
       sort: (r) => {
         const a = get(r);
-        return a.hanukkah ?? (a.hanukkahLevel ? LEVEL_SCORE[a.hanukkahLevel] ?? null : null);
+        return (
+          a.hanukkah ??
+          (a.hanukkahLevel ? (LEVEL_SCORE[a.hanukkahLevel] ?? null) : null)
+        );
       },
     },
     {
-      label: 'Jewish',
+      label: "Jewish",
       width: 65,
-      align: 'right',
+      align: "right",
       cell: (r) => {
         const v = get(r).jewish;
-        return v == null ? '—' : String(v);
+        return v == null ? "—" : String(v);
       },
       sort: (r) => get(r).jewish,
     },
   ];
 }
 
-const GUEST_STAGE_LABEL: Record<DashGuest['stage'], string> = {
-  started: 'Started onboarding',
-  answered: 'Answered questions',
-  built: 'Built, not revealed',
-  revealed: 'Box revealed',
-  gift: 'Gift draft only',
+const GUEST_STAGE_LABEL: Record<DashGuest["stage"], string> = {
+  started: "Started onboarding",
+  answered: "Answered questions",
+  built: "Built, not revealed",
+  revealed: "Box revealed",
+  gift: "Gift draft only",
 };
 
 function statusLabel(s: string): string {
-  if (s === 'pending') return 'Pending (unpaid)';
+  if (s === "pending") return "Pending (unpaid)";
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function giftState(g: DashGift): string {
-  if (g.status === 'converted_to_credit') return 'Converted to credit';
-  if (g.checkedOut) return 'Checked out';
-  if (g.claimed) return 'Claimed';
-  return g.paid ? 'Sent, unclaimed' : 'Unpaid';
+  if (g.status === "converted_to_credit") return "Converted to credit";
+  if (g.checkedOut) return "Checked out";
+  if (g.claimed) return "Claimed";
+  return g.paid ? "Sent, unclaimed" : "Unpaid";
 }
 
 /** Open-draft demand is recomputed so hidden test drafts don't count; stock holds stay as the server has them. */
-function inventoryFor(data: BoxesDashboard, hideTests: boolean): InventoryView[] {
+function inventoryFor(
+  data: BoxesDashboard,
+  hideTests: boolean,
+): InventoryView[] {
   const demand = new Map<string, number>();
   for (const b of data.boxes) {
-    if (b.status !== 'draft' || b.playthrough || (hideTests && b.test)) continue;
+    if (b.status !== "draft" || b.playthrough || (hideTests && b.test))
+      continue;
     for (const l of b.lines) {
       if (!l.itemId) continue;
       demand.set(l.itemId, (demand.get(l.itemId) ?? 0) + Math.max(1, l.qty));
@@ -167,26 +193,27 @@ function inventoryFor(data: BoxesDashboard, hideTests: boolean): InventoryView[]
     })
     .sort(
       (a, b) =>
-        (a.remainingAfterDrafts ?? 1e9) - (b.remainingAfterDrafts ?? 1e9) || a.name.localeCompare(b.name),
+        (a.remainingAfterDrafts ?? 1e9) - (b.remainingAfterDrafts ?? 1e9) ||
+        a.name.localeCompare(b.name),
     );
 }
 
 function toneColor(colors: SemanticColors, tone: Tone): string {
   switch (tone) {
-    case 'success':
+    case "success":
       return colors.success;
-    case 'warning':
+    case "warning":
       return colors.warning;
-    case 'danger':
+    case "danger":
       return colors.error;
-    case 'info':
+    case "info":
       return colors.info;
-    case 'gold':
+    case "gold":
       return colors.goldDark;
-    case 'neutral':
+    case "neutral":
       return colors.textTertiary;
     default:
-      return 'transparent';
+      return "transparent";
   }
 }
 
@@ -210,7 +237,11 @@ function Chip({
   const inScroller = React.useContext(ChipScrollContext);
   return (
     <TouchableOpacity
-      style={[styles.chip, active && styles.chipActive, mobile && !inScroller && { maxWidth: '100%' }]}
+      style={[
+        styles.chip,
+        active && styles.chipActive,
+        mobile && !inScroller && { maxWidth: "100%" },
+      ]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: !!active }}
@@ -226,7 +257,15 @@ function Chip({
 }
 
 /** Wrapping chip row on desktop; one edge-to-edge swipeable line on phones. */
-function ChipRow({ styles, style, children }: { styles: Styles; style?: object; children: React.ReactNode }) {
+function ChipRow({
+  styles,
+  style,
+  children,
+}: {
+  styles: Styles;
+  style?: object;
+  children: React.ReactNode;
+}) {
   const mobile = useMobileLayout();
   const inScroller = React.useContext(ChipScrollContext);
   if (!mobile) return <View style={[styles.chipRow, style]}>{children}</View>;
@@ -236,7 +275,10 @@ function ChipRow({ styles, style, children }: { styles: Styles; style?: object; 
       horizontal
       showsHorizontalScrollIndicator={false}
       style={{ marginHorizontal: -mGutter, flexGrow: 0 }}
-      contentContainerStyle={[styles.chipRow, { flexWrap: 'nowrap', paddingHorizontal: mGutter }]}
+      contentContainerStyle={[
+        styles.chipRow,
+        { flexWrap: "nowrap", paddingHorizontal: mGutter },
+      ]}
       keyboardShouldPersistTaps="handled"
     >
       <ChipScrollContext.Provider value>{children}</ChipScrollContext.Provider>
@@ -258,7 +300,13 @@ function ChipGroup<T extends string>({
   return (
     <ChipRow styles={styles}>
       {options.map(([v, label]) => (
-        <Chip key={v} label={label} active={value === v} onPress={() => onChange(v)} styles={styles} />
+        <Chip
+          key={v}
+          label={label}
+          active={value === v}
+          onPress={() => onChange(v)}
+          styles={styles}
+        />
       ))}
     </ChipRow>
   );
@@ -283,7 +331,16 @@ function Stat({
   const mobile = useMobileLayout();
   return (
     <View style={styles.stat}>
-      <Text style={[styles.statValue, tone && tone !== 'neutral' ? { color: toneColor(colors, tone) } : null]}>{value}</Text>
+      <Text
+        style={[
+          styles.statValue,
+          tone && tone !== "neutral"
+            ? { color: toneColor(colors, tone) }
+            : null,
+        ]}
+      >
+        {value}
+      </Text>
       <Text style={styles.statLabel}>{mobile && short ? short : label}</Text>
     </View>
   );
@@ -292,7 +349,7 @@ function Stat({
 type Column<T> = {
   label: string;
   width: number;
-  align?: 'left' | 'right';
+  align?: "left" | "right";
   cell: (row: T) => React.ReactNode;
   sort?: (row: T) => string | number | null;
   /** Left off phone cards (another column already says it). */
@@ -302,18 +359,25 @@ type Column<T> = {
   /** The row's name. Stays visible, and the column menu can't turn it off. */
   title?: boolean;
 };
-type SortState = { label: string; dir: 'asc' | 'desc' } | null;
+type SortState = { label: string; dir: "asc" | "desc" } | null;
 
-const isBlank = (v: React.ReactNode) => v == null || v === '' || v === '—';
+const isBlank = (v: React.ReactNode) => v == null || v === "" || v === "—";
 
 /** Desktop table width: numbers shrink most since their headers wrap, but never below the longest header word. */
-const compactWidth = (c: Pick<Column<unknown>, 'align' | 'width' | 'label'>) => {
+const compactWidth = (
+  c: Pick<Column<unknown>, "align" | "width" | "label">,
+) => {
   const longestWord = Math.max(...c.label.split(/\s+/).map((w) => w.length));
   const floor = Math.ceil(longestWord * 7) + 14;
-  return Math.max(floor, Math.round(c.width * (c.align === 'right' ? 0.66 : 0.8)));
+  return Math.max(
+    floor,
+    Math.round(c.width * (c.align === "right" ? 0.66 : 0.8)),
+  );
 };
 
-const stickyFirst = (Platform.OS === 'web' ? { position: 'sticky', zIndex: 1 } : null) as ViewStyle | null;
+const stickyFirst = (
+  Platform.OS === "web" ? { position: "sticky", zIndex: 1 } : null
+) as ViewStyle | null;
 
 const mobileCard = StyleSheet.create({
   card: {
@@ -322,13 +386,31 @@ const mobileCard = StyleSheet.create({
     paddingVertical: 9,
     paddingHorizontal: 11,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   cardNested: { backgroundColor: m.white },
-  pairs: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 2, marginTop: 4, paddingLeft: 15 },
-  pair: { flexDirection: 'row', alignItems: 'baseline', gap: 4, maxWidth: '100%' },
+  pairs: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: 12,
+    rowGap: 2,
+    marginTop: 4,
+    paddingLeft: 15,
+  },
+  pair: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 4,
+    maxWidth: "100%",
+  },
   pairLabel: { fontSize: 11, color: m.muted, ...mFont(400) },
-  pairValue: { fontSize: 13, lineHeight: 17, color: m.ink, ...mFont(400), flexShrink: 1 },
+  pairValue: {
+    fontSize: 13,
+    lineHeight: 17,
+    color: m.ink,
+    ...mFont(400),
+    flexShrink: 1,
+  },
   sortLabel: { fontSize: 12, color: m.muted, ...mFont(400), marginRight: 2 },
 });
 
@@ -349,9 +431,16 @@ function useColumnVisibility(
   const [hidden, setHidden] = useState<string[] | null>(null);
   useEffect(() => {
     try {
-      const raw = typeof window !== 'undefined' ? window.localStorage?.getItem(storageKey) : null;
+      const raw =
+        typeof window !== "undefined"
+          ? window.localStorage?.getItem(storageKey)
+          : null;
       const parsed = raw ? JSON.parse(raw) : [];
-      setHidden(Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : []);
+      setHidden(
+        Array.isArray(parsed)
+          ? parsed.filter((v) => typeof v === "string")
+          : [],
+      );
     } catch {
       setHidden([]);
     }
@@ -359,7 +448,8 @@ function useColumnVisibility(
   useEffect(() => {
     if (hidden == null) return;
     try {
-      if (typeof window !== 'undefined') window.localStorage?.setItem(storageKey, JSON.stringify(hidden));
+      if (typeof window !== "undefined")
+        window.localStorage?.setItem(storageKey, JSON.stringify(hidden));
     } catch {
       // Private mode: the choice lasts for this visit only.
     }
@@ -368,10 +458,18 @@ function useColumnVisibility(
   const visible = useMemo(() => {
     if (hidden == null) return null;
     const hiddenSet = new Set(hidden);
-    return new Set(columns.filter((c, i) => i === lockAt || !hiddenSet.has(c.label)).map((c) => c.label));
+    return new Set(
+      columns
+        .filter((c, i) => i === lockAt || !hiddenSet.has(c.label))
+        .map((c) => c.label),
+    );
   }, [columns, hidden, lockAt]);
   const setVisible = (next: Set<string>) =>
-    setHidden(columns.filter((c, i) => i !== lockAt && !next.has(c.label)).map((c) => c.label));
+    setHidden(
+      columns
+        .filter((c, i) => i !== lockAt && !next.has(c.label))
+        .map((c) => c.label),
+    );
   return [visible, setVisible];
 }
 
@@ -402,16 +500,27 @@ function ColumnPicker<T>({
         accessibilityState={{ expanded: open }}
       >
         <Text style={styles.chipLabel} numberOfLines={1}>
-          {`Columns · ${shown} of ${optional.length} ${open ? '▴' : '▾'}`}
+          {`Columns · ${shown} of ${optional.length} ${open ? "▴" : "▾"}`}
         </Text>
       </TouchableOpacity>
       {open ? (
-        <View style={[styles.colMenu, { backgroundColor: colors.bgElevated, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.colMenu,
+            { backgroundColor: colors.bgElevated, borderColor: colors.border },
+          ]}
+        >
           <View style={styles.colMenuActions}>
-            <TouchableOpacity onPress={() => onChange(new Set(columns.map((c) => c.label)))} hitSlop={6}>
+            <TouchableOpacity
+              onPress={() => onChange(new Set(columns.map((c) => c.label)))}
+              hitSlop={6}
+            >
               <Text style={styles.colMenuAction}>Show all</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => onChange(new Set([columns[lockAt].label]))} hitSlop={6}>
+            <TouchableOpacity
+              onPress={() => onChange(new Set([columns[lockAt].label]))}
+              hitSlop={6}
+            >
               <Text style={styles.colMenuAction}>Hide all</Text>
             </TouchableOpacity>
           </View>
@@ -431,8 +540,18 @@ function ColumnPicker<T>({
                     onChange(next);
                   }}
                 >
-                  <Text style={[styles.colMenuCheck, !on && styles.colMenuCheckOff]}>{on ? '✓' : ''}</Text>
-                  <Text style={[styles.colMenuLabel, i === lockAt && styles.colMenuLabelLocked]} numberOfLines={1}>
+                  <Text
+                    style={[styles.colMenuCheck, !on && styles.colMenuCheckOff]}
+                  >
+                    {on ? "✓" : ""}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.colMenuLabel,
+                      i === lockAt && styles.colMenuLabelLocked,
+                    ]}
+                    numberOfLines={1}
+                  >
                     {c.label}
                   </Text>
                 </TouchableOpacity>
@@ -471,7 +590,7 @@ function SortTable<T>({
   /** Inside another row's detail: white phone cards, no sort chips. */
   nested?: boolean;
   /** Column to sort by before the user picks a header. Matched by label so it survives the column list loading. */
-  initialSort?: { label: string; dir: 'asc' | 'desc' };
+  initialSort?: { label: string; dir: "asc" | "desc" };
   styles: Styles;
   colors: SemanticColors;
 }) {
@@ -481,14 +600,17 @@ function SortTable<T>({
     const col = sort ? columns.find((c) => c.label === sort.label) : undefined;
     if (!sort || !col?.sort) return rows;
     const get = col.sort;
-    const sign = sort.dir === 'asc' ? 1 : -1;
+    const sign = sort.dir === "asc" ? 1 : -1;
     return rows
       .map((row, i) => ({ row, i, v: get(row) }))
       .sort((a, b) => {
-        if (a.v == null || a.v === '') return b.v == null || b.v === '' ? a.i - b.i : 1;
-        if (b.v == null || b.v === '') return -1;
+        if (a.v == null || a.v === "")
+          return b.v == null || b.v === "" ? a.i - b.i : 1;
+        if (b.v == null || b.v === "") return -1;
         const c =
-          typeof a.v === 'number' && typeof b.v === 'number' ? a.v - b.v : String(a.v).localeCompare(String(b.v));
+          typeof a.v === "number" && typeof b.v === "number"
+            ? a.v - b.v
+            : String(a.v).localeCompare(String(b.v));
         return c * sign || a.i - b.i;
       })
       .map((x) => x.row);
@@ -496,9 +618,11 @@ function SortTable<T>({
 
   const onHeader = (i: number) => {
     const label = columns[i].label;
-    const firstDir = columns[i].align === 'right' ? 'desc' : 'asc';
+    const firstDir = columns[i].align === "right" ? "desc" : "asc";
     setSort((prev) =>
-      prev?.label === label ? { label, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { label, dir: firstDir },
+      prev?.label === label
+        ? { label, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { label, dir: firstDir },
     );
   };
   const expandable = Boolean(renderDetail && onToggle);
@@ -519,7 +643,7 @@ function SortTable<T>({
               c.sort ? (
                 <Chip
                   key={c.label}
-                  label={`${c.label}${sort?.label === c.label ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}`}
+                  label={`${c.label}${sort?.label === c.label ? (sort.dir === "asc" ? " ↑" : " ↓") : ""}`}
                   active={sort?.label === c.label}
                   onPress={() => onHeader(i)}
                   styles={styles}
@@ -535,33 +659,60 @@ function SortTable<T>({
           return (
             <View
               key={key}
-              style={[mobileCard.card, nested && mobileCard.cardNested, open && { borderColor: m.gold }]}
+              style={[
+                mobileCard.card,
+                nested && mobileCard.cardNested,
+                open && { borderColor: m.gold },
+              ]}
             >
               <TouchableOpacity
                 activeOpacity={expandable ? 0.7 : 1}
                 disabled={!expandable}
                 onPress={() => onToggle?.(key)}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-                  <View style={[styles.dot, { backgroundColor: tone, marginTop: 6 }]} />
-                  <View style={{ flex: 1, minWidth: 0 }}>{renderCell(columns[titleIndex(columns)], row, styles)}</View>
-                  {expandable ? <Text style={styles.toggle}>{open ? '⌄' : '›'}</Text> : null}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "flex-start",
+                    gap: 8,
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.dot,
+                      { backgroundColor: tone, marginTop: 6 },
+                    ]}
+                  />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    {renderCell(columns[titleIndex(columns)], row, styles)}
+                  </View>
+                  {expandable ? (
+                    <Text style={styles.toggle}>{open ? "⌄" : "›"}</Text>
+                  ) : null}
                 </View>
                 <View style={mobileCard.pairs}>
-                  {columns.filter((_, i) => i !== titleIndex(columns)).map((c) => {
-                    if (c.mobileHidden) return null;
-                    const v = c.cell(row);
-                    if (isBlank(v)) return null;
-                    return (
-                      <View key={c.label} style={mobileCard.pair}>
-                        <Text style={mobileCard.pairLabel}>{c.label}</Text>
-                        {typeof v === 'string' ? <Text style={mobileCard.pairValue}>{v}</Text> : v}
-                      </View>
-                    );
-                  })}
+                  {columns
+                    .filter((_, i) => i !== titleIndex(columns))
+                    .map((c) => {
+                      if (c.mobileHidden) return null;
+                      const v = c.cell(row);
+                      if (isBlank(v)) return null;
+                      return (
+                        <View key={c.label} style={mobileCard.pair}>
+                          <Text style={mobileCard.pairLabel}>{c.label}</Text>
+                          {typeof v === "string" ? (
+                            <Text style={mobileCard.pairValue}>{v}</Text>
+                          ) : (
+                            v
+                          )}
+                        </View>
+                      );
+                    })}
                 </View>
               </TouchableOpacity>
-              {open && renderDetail ? <View style={{ marginTop: 8 }}>{renderDetail(row)}</View> : null}
+              {open && renderDetail ? (
+                <View style={{ marginTop: 8 }}>{renderDetail(row)}</View>
+              ) : null}
             </View>
           );
         })}
@@ -569,7 +720,11 @@ function SortTable<T>({
     );
   }
 
-  const pinned = [stickyFirst, styles.pinCell, { backgroundColor: nested ? colors.bgElevated : colors.bgPrimary }];
+  const pinned = [
+    stickyFirst,
+    styles.pinCell,
+    { backgroundColor: nested ? colors.bgElevated : colors.bgPrimary },
+  ];
   const overflows = viewWidth > 0 && totalWidth > viewWidth;
   const titleAt = titleIndex(columns);
   const titleMax = columns[titleAt]?.maxWidth;
@@ -578,33 +733,53 @@ function SortTable<T>({
   const cellStyle = (i: number) =>
     i === titleAt
       ? [
-          { flexGrow: 1, flexBasis: widths[titleAt], maxWidth: titleMax, paddingRight: spacing.xs },
+          {
+            flexGrow: 1,
+            flexBasis: widths[titleAt],
+            maxWidth: titleMax,
+            paddingRight: spacing.xs,
+          },
           pinTitle && pinned,
           pinTitle && overflows && styles.pinEdge,
         ]
       : [
           // A capped title hands the spare width to the other columns instead.
-          titleMax ? { flexGrow: 1, flexBasis: widths[i] } : { width: widths[i] },
-          { paddingLeft: i === titleAt + 1 && overflows ? spacing.xs : 0, paddingRight: spacing.xs },
+          titleMax
+            ? { flexGrow: 1, flexBasis: widths[i] }
+            : { width: widths[i] },
+          {
+            paddingLeft: i === titleAt + 1 && overflows ? spacing.xs : 0,
+            paddingRight: spacing.xs,
+          },
         ];
 
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator
-      contentContainerStyle={{ minWidth: '100%' }}
+      contentContainerStyle={{ minWidth: "100%" }}
       onLayout={(e) => setViewWidth(e.nativeEvent.layout.width)}
     >
-      <View style={{ minWidth: totalWidth, width: '100%' }}>
+      <View style={{ minWidth: totalWidth, width: "100%" }}>
         <View style={[styles.tr, styles.trHead]}>
           <View style={[styles.dotCell, pinned, { left: 0 }]} />
-          {expandable ? <View style={[styles.toggleCell, pinned, { left: 20 }]} /> : null}
+          {expandable ? (
+            <View style={[styles.toggleCell, pinned, { left: 20 }]} />
+          ) : null}
           {columns.map((c, i) => {
-            const label = `${c.label}${sort?.label === c.label ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}`;
-            const textStyle = [styles.th, c.align === 'right' && styles.right, sort?.label === c.label && styles.thActive];
+            const label = `${c.label}${sort?.label === c.label ? (sort.dir === "asc" ? " ↑" : " ↓") : ""}`;
+            const textStyle = [
+              styles.th,
+              c.align === "right" && styles.right,
+              sort?.label === c.label && styles.thActive,
+            ];
             const style = [cellStyle(i), pinTitle && i === 0 && { left: lead }];
             return c.sort ? (
-              <TouchableOpacity key={c.label} style={style} onPress={() => onHeader(i)}>
+              <TouchableOpacity
+                key={c.label}
+                style={style}
+                onPress={() => onHeader(i)}
+              >
                 <Text style={textStyle} numberOfLines={2}>
                   {label}
                 </Text>
@@ -628,19 +803,36 @@ function SortTable<T>({
                 style={styles.tr}
               >
                 <View style={[styles.dotCell, pinned, { left: 0 }]}>
-                  <View style={[styles.dot, { backgroundColor: toneColor(colors, rowTone?.(row)) }]} />
+                  <View
+                    style={[
+                      styles.dot,
+                      { backgroundColor: toneColor(colors, rowTone?.(row)) },
+                    ]}
+                  />
                 </View>
                 {expandable ? (
                   <View style={[styles.toggleCell, pinned, { left: 20 }]}>
-                    <Text style={styles.toggle}>{open ? '⌄' : '›'}</Text>
+                    <Text style={styles.toggle}>{open ? "⌄" : "›"}</Text>
                   </View>
                 ) : null}
                 {columns.map((c, i) => {
                   const v = c.cell(row);
                   return (
-                    <View key={c.label} style={[cellStyle(i), pinTitle && i === 0 && { left: lead }]}>
-                      {typeof v === 'string' ? (
-                        <Text style={[styles.td, c.align === 'right' && styles.right]} numberOfLines={c.maxWidth ? 1 : 2}>
+                    <View
+                      key={c.label}
+                      style={[
+                        cellStyle(i),
+                        pinTitle && i === 0 && { left: lead },
+                      ]}
+                    >
+                      {typeof v === "string" ? (
+                        <Text
+                          style={[
+                            styles.td,
+                            c.align === "right" && styles.right,
+                          ]}
+                          numberOfLines={c.maxWidth ? 1 : 2}
+                        >
                           {v}
                         </Text>
                       ) : (
@@ -650,7 +842,9 @@ function SortTable<T>({
                   );
                 })}
               </TouchableOpacity>
-              {open && renderDetail ? <View style={styles.detail}>{renderDetail(row)}</View> : null}
+              {open && renderDetail ? (
+                <View style={styles.detail}>{renderDetail(row)}</View>
+              ) : null}
             </View>
           );
         })}
@@ -659,19 +853,41 @@ function SortTable<T>({
   );
 }
 
-function renderCell<T>(c: Column<T>, row: T, styles: Styles, align?: 'left' | 'right') {
+function renderCell<T>(
+  c: Column<T>,
+  row: T,
+  styles: Styles,
+  align?: "left" | "right",
+) {
   const v = c.cell(row);
-  if (typeof v === 'string') {
-    return <Text style={[styles.td, (align ?? c.align) === 'right' && { textAlign: 'right' }]}>{v}</Text>;
+  if (typeof v === "string") {
+    return (
+      <Text
+        style={[
+          styles.td,
+          (align ?? c.align) === "right" && { textAlign: "right" },
+        ]}
+      >
+        {v}
+      </Text>
+    );
   }
   return v;
 }
 
-function Who({ name, email, styles }: { name: string | null; email: string | null; styles: Styles }) {
+function Who({
+  name,
+  email,
+  styles,
+}: {
+  name: string | null;
+  email: string | null;
+  styles: Styles;
+}) {
   return (
     <View>
       <Text style={[styles.td, styles.tdStrong]} numberOfLines={1}>
-        {name ?? '—'}
+        {name ?? "—"}
       </Text>
       {email && email !== name ? (
         <Text style={styles.tdMuted} numberOfLines={1}>
@@ -682,11 +898,11 @@ function Who({ name, email, styles }: { name: string | null; email: string | nul
   );
 }
 
-function lineOriginLabel(origin: DashLine['origin']): string {
-  if (origin === 'default') return 'Default';
-  if (origin === 'changed') return 'Swapped';
-  if (origin === 'added') return 'Added';
-  return '—';
+function lineOriginLabel(origin: DashLine["origin"]): string {
+  if (origin === "default") return "Default";
+  if (origin === "changed") return "Swapped";
+  if (origin === "added") return "Added";
+  return "—";
 }
 
 function LineItems({
@@ -701,28 +917,39 @@ function LineItems({
   colors: SemanticColors;
 }) {
   const columns: Column<DashLine>[] = [
-    { label: 'Item', width: 240, cell: (l) => l.name },
-    { label: 'For', width: 110, cell: (l) => l.child ?? 'household' },
-    { label: 'Qty', width: 50, align: 'right', cell: (l) => String(l.qty) },
-    { label: 'Type', width: 80, cell: (l) => (l.addOn ? 'Add-on' : 'Included') },
-    { label: 'Source', width: 80, cell: (l) => lineOriginLabel(l.origin) },
-    { label: 'Unit price', width: 80, align: 'right', cell: (l) => (l.addOn ? money(l.unitCents) : '—') },
+    { label: "Item", width: 240, cell: (l) => l.name },
+    { label: "For", width: 110, cell: (l) => l.child ?? "household" },
+    { label: "Qty", width: 50, align: "right", cell: (l) => String(l.qty) },
     {
-      label: 'Remaining',
+      label: "Type",
+      width: 80,
+      cell: (l) => (l.addOn ? "Add-on" : "Included"),
+    },
+    { label: "Source", width: 80, cell: (l) => lineOriginLabel(l.origin) },
+    {
+      label: "Unit price",
+      width: 80,
+      align: "right",
+      cell: (l) => (l.addOn ? money(l.unitCents) : "—"),
+    },
+    {
+      label: "Remaining",
       width: 90,
-      align: 'right',
+      align: "right",
       cell: (l) => {
         const inv = l.itemId ? inventoryById.get(l.itemId) : undefined;
-        return inv?.remaining == null ? 'N/A' : String(inv.remaining);
+        return inv?.remaining == null ? "N/A" : String(inv.remaining);
       },
     },
     {
-      label: 'After drafts',
+      label: "After drafts",
       width: 90,
-      align: 'right',
+      align: "right",
       cell: (l) => {
         const inv = l.itemId ? inventoryById.get(l.itemId) : undefined;
-        return inv?.remainingAfterDrafts == null ? 'N/A' : String(inv.remainingAfterDrafts);
+        return inv?.remainingAfterDrafts == null
+          ? "N/A"
+          : String(inv.remainingAfterDrafts);
       },
     },
   ];
@@ -730,11 +957,13 @@ function LineItems({
     <SortTable<DashLine>
       columns={columns}
       rows={lines}
-      rowKey={(l) => `${l.itemId ?? l.name}-${l.child ?? 'hh'}-${l.addOn}`}
+      rowKey={(l) => `${l.itemId ?? l.name}-${l.child ?? "hh"}-${l.addOn}`}
       rowTone={(l) => {
         const inv = l.itemId ? inventoryById.get(l.itemId) : undefined;
-        if (inv?.remainingAfterDrafts != null && inv.remainingAfterDrafts < 0) return 'danger';
-        if (inv?.remaining != null && inv.remaining <= LOW_THRESHOLD) return 'warning';
+        if (inv?.remainingAfterDrafts != null && inv.remainingAfterDrafts < 0)
+          return "danger";
+        if (inv?.remaining != null && inv.remaining <= LOW_THRESHOLD)
+          return "warning";
         return undefined;
       }}
       emptyMessage="No line items."
@@ -745,27 +974,39 @@ function LineItems({
   );
 }
 
-const CHANNEL_LABEL: Record<DashCardSession['channel'], string> = {
-  instagram: 'IG',
-  facebook: 'FB',
-  meta: 'IG/FB ad',
-  email: 'Email',
-  organic: 'Organic',
-  other: 'Other',
+const CHANNEL_LABEL: Record<DashCardSession["channel"], string> = {
+  instagram: "IG",
+  facebook: "FB",
+  meta: "IG/FB ad",
+  email: "Email",
+  organic: "Organic",
+  other: "Other",
 };
 
 /** "IG · mobile", "Email? · desktop" (? = no entry recorded; guessed from a campaign click that day). */
-function cardSessionShort(s: DashCardSession | null | undefined): string | null {
+function cardSessionShort(
+  s: DashCardSession | null | undefined,
+): string | null {
   if (!s) return null;
-  return [`${CHANNEL_LABEL[s.channel]}${s.inferred ? '?' : ''}`, s.device].filter(Boolean).join(' · ');
+  return [`${CHANNEL_LABEL[s.channel]}${s.inferred ? "?" : ""}`, s.device]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function cardSessionLong(s: DashCardSession): string {
-  const guess = s.inferred ? ' (estimated: the session’s entry wasn’t recorded)' : '';
+  const guess = s.inferred
+    ? " (estimated: the session’s entry wasn’t recorded)"
+    : "";
   return `${cardSessionShort(s)} · ${s.detail} · ${when(s.at)}${guess}`;
 }
 
-function Facts({ facts, styles }: { facts: Array<[string, string]>; styles: Styles }) {
+function Facts({
+  facts,
+  styles,
+}: {
+  facts: Array<[string, string]>;
+  styles: Styles;
+}) {
   return (
     <View style={styles.facts}>
       {facts.map(([k, v]) => (
@@ -784,11 +1025,11 @@ type Placed = { location?: string | null; fromIp?: boolean };
 
 /** "NY" from an address, "~NY" when estimated from the IP address. */
 function placeLabel(p: Placed): string {
-  return p.location ? `${p.fromIp ? '~' : ''}${p.location}` : '—';
+  return p.location ? `${p.fromIp ? "~" : ""}${p.location}` : "—";
 }
 
 /** "By state: NY 4 · ON, Canada 2 · unknown 3 (~ 5 estimated from IP)" for the rows currently shown. */
-function stateSummary(rows: Placed[], label = 'By state'): string {
+function stateSummary(rows: Placed[], label = "By state"): string {
   const counts = new Map<string, number>();
   let missing = 0;
   let fromIp = 0;
@@ -800,15 +1041,20 @@ function stateSummary(rows: Placed[], label = 'By state'): string {
     counts.set(r.location, (counts.get(r.location) ?? 0) + 1);
     if (r.fromIp) fromIp += 1;
   }
-  const parts = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([s, n]) => `${s} ${n}`);
+  const parts = [...counts]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([s, n]) => `${s} ${n}`);
   if (missing) parts.push(`unknown ${missing}`);
-  if (!parts.length) return '';
-  const note = fromIp ? ` (~ ${fromIp} estimated from IP address; mobile networks can be off by a state)` : '';
-  return `${label}: ${parts.join(' · ')}${note}`;
+  if (!parts.length) return "";
+  const note = fromIp
+    ? ` (~ ${fromIp} estimated from IP address; mobile networks can be off by a state)`
+    : "";
+  return `${label}: ${parts.join(" · ")}${note}`;
 }
 
-type BoxStatusFilter = 'active' | 'draft' | 'open' | 'fulfilled' | 'cancelled' | 'all';
-type YesNoAny = 'any' | 'yes' | 'no';
+type BoxStatusFilter =
+  "active" | "draft" | "open" | "fulfilled" | "cancelled" | "all";
+type YesNoAny = "any" | "yes" | "no";
 
 function BoxesSection({
   data,
@@ -816,7 +1062,7 @@ function BoxesSection({
   inventoryById,
   styles,
   colors,
-  initialQuery = '',
+  initialQuery = "",
 }: {
   data: BoxesDashboard;
   hideTests: boolean;
@@ -826,9 +1072,9 @@ function BoxesSection({
   /** Prefill from `/admin/orders?q=…` (Pilot “View box” link). */
   initialQuery?: string;
 }) {
-  const [status, setStatus] = useState<BoxStatusFilter>('active');
-  const [card, setCard] = useState<YesNoAny>('any');
-  const [addOns, setAddOns] = useState<YesNoAny>('any');
+  const [status, setStatus] = useState<BoxStatusFilter>("active");
+  const [card, setCard] = useState<YesNoAny>("any");
+  const [addOns, setAddOns] = useState<YesNoAny>("any");
   const [kosherOnly, setKosherOnly] = useState(false);
   const [showPlaythrough, setShowPlaythrough] = useState(false);
   const [query, setQuery] = useState(initialQuery);
@@ -840,74 +1086,162 @@ function BoxesSection({
     return data.boxes.filter((b) => {
       if (!showPlaythrough && b.playthrough) return false;
       if (hideTests && b.test) return false;
-      if (status === 'active' && b.status === 'cancelled') return false;
-      if (status === 'draft' && b.status !== 'draft') return false;
-      if (status === 'open' && !['pending', 'committed'].includes(b.status)) return false;
-      if (status === 'fulfilled' && !['confirmed', 'shipped', 'delivered'].includes(b.status)) return false;
-      if (status === 'cancelled' && b.status !== 'cancelled') return false;
-      if (card === 'yes' && !b.cardOnFile) return false;
-      if (card === 'no' && b.cardOnFile) return false;
-      if (addOns === 'yes' && b.addOnCents <= 0) return false;
-      if (addOns === 'no' && b.addOnCents > 0) return false;
+      if (status === "active" && b.status === "cancelled") return false;
+      if (status === "draft" && b.status !== "draft") return false;
+      if (status === "open" && !["pending", "committed"].includes(b.status))
+        return false;
+      if (
+        status === "fulfilled" &&
+        !["confirmed", "shipped", "delivered"].includes(b.status)
+      )
+        return false;
+      if (status === "cancelled" && b.status !== "cancelled") return false;
+      if (card === "yes" && !b.cardOnFile) return false;
+      if (card === "no" && b.cardOnFile) return false;
+      if (addOns === "yes" && b.addOnCents <= 0) return false;
+      if (addOns === "no" && b.addOnCents > 0) return false;
       if (kosherOnly && !b.kosher) return false;
-      if (q && !`${b.customer ?? ''} ${b.email ?? ''} ${b.householdId}`.toLowerCase().includes(q)) return false;
+      if (
+        q &&
+        !`${b.customer ?? ""} ${b.email ?? ""} ${b.householdId}`
+          .toLowerCase()
+          .includes(q)
+      )
+        return false;
       return true;
     });
-  }, [data, status, card, addOns, kosherOnly, showPlaythrough, hideTests, query]);
+  }, [
+    data,
+    status,
+    card,
+    addOns,
+    kosherOnly,
+    showPlaythrough,
+    hideTests,
+    query,
+  ]);
 
   const columns: Column<DashBox>[] = [
-    { label: 'Customer', width: 200, cell: (b) => <Who name={b.customer} email={b.email} styles={styles} />, sort: (b) => (b.customer ?? b.email ?? '').toLowerCase() },
-    { label: 'State', width: 100, cell: (b) => placeLabel({ location: b.location, fromIp: b.locationFromIp }), sort: (b) => b.location ?? null },
-    { label: 'Kids', width: 50, align: 'right', cell: (b) => String(b.kids), sort: (b) => b.kids },
     {
-      label: 'Ages',
+      label: "Customer",
+      width: 200,
+      cell: (b) => <Who name={b.customer} email={b.email} styles={styles} />,
+      sort: (b) => (b.customer ?? b.email ?? "").toLowerCase(),
+    },
+    {
+      label: "State",
+      width: 100,
+      cell: (b) =>
+        placeLabel({ location: b.location, fromIp: b.locationFromIp }),
+      sort: (b) => b.location ?? null,
+    },
+    {
+      label: "Kids",
+      width: 50,
+      align: "right",
+      cell: (b) => String(b.kids),
+      sort: (b) => b.kids,
+    },
+    {
+      label: "Ages",
       width: 90,
-      cell: (b) => (b.kidAges?.length ? b.kidAges.join(', ') : '—'),
-      sort: (b) => b.kidAges?.join(',') ?? null,
+      cell: (b) => (b.kidAges?.length ? b.kidAges.join(", ") : "—"),
+      sort: (b) => b.kidAges?.join(",") ?? null,
     },
     ...answerColumns<DashBox>((b) => b.answers),
-    { label: 'Note', width: 50, cell: (b) => (b.note?.trim() ? 'Yes' : '—'), sort: (b) => (b.note?.trim() ? 1 : 0) },
     {
-      label: 'Swaps',
+      label: "Note",
+      width: 50,
+      cell: (b) => (b.note?.trim() ? "Yes" : "—"),
+      sort: (b) => (b.note?.trim() ? 1 : 0),
+    },
+    {
+      label: "Swaps",
       width: 60,
-      align: 'right',
+      align: "right",
       cell: (b) => String(b.swaps ?? 0),
       sort: (b) => b.swaps ?? 0,
     },
-    { label: 'Kosher', width: 70, cell: (b) => (b.kosher ? 'Yes' : '—'), sort: (b) => (b.kosher ? 1 : 0) },
-    { label: 'Status', width: 120, cell: (b) => statusLabel(b.status), sort: (b) => b.status },
     {
-      label: 'Card',
+      label: "Kosher",
+      width: 70,
+      cell: (b) => (b.kosher ? "Yes" : "—"),
+      sort: (b) => (b.kosher ? 1 : 0),
+    },
+    {
+      label: "Status",
+      width: 120,
+      cell: (b) => statusLabel(b.status),
+      sort: (b) => b.status,
+    },
+    {
+      label: "Card",
       width: 50,
       cell: (b) => {
-        if (!b.cardOnFile) return 'No';
+        if (!b.cardOnFile) return "No";
         const from = mobile ? cardSessionShort(b.cardSession) : null;
-        return from ? `Yes · ${from}` : 'Yes';
+        return from ? `Yes · ${from}` : "Yes";
       },
       sort: (b) => (b.cardOnFile ? 1 : 0),
     },
     {
-      label: 'Card added from',
+      label: "Card added from",
       width: 130,
-      cell: (b) => cardSessionShort(b.cardSession) ?? '—',
+      cell: (b) => cardSessionShort(b.cardSession) ?? "—",
       sort: (b) => cardSessionShort(b.cardSession),
       mobileHidden: true,
     },
-    { label: 'Box price', width: 80, align: 'right', cell: (b) => money(b.boxPriceCents), sort: (b) => b.boxPriceCents, mobileHidden: true },
-    { label: 'Add-ons', width: 70, align: 'right', cell: (b) => (b.addOnCents ? money(b.addOnCents) : '—'), sort: (b) => b.addOnCents },
     {
-      label: 'Total',
-      width: 90,
-      align: 'right',
-      cell: (b) => (b.source === 'draft' ? `${money(b.subtotalCents)} est.` : money(b.totalCents)),
-      sort: (b) => (b.source === 'draft' ? b.subtotalCents : b.totalCents),
+      label: "Box price",
+      width: 80,
+      align: "right",
+      cell: (b) => money(b.boxPriceCents),
+      sort: (b) => b.boxPriceCents,
+      mobileHidden: true,
     },
-    { label: 'Created', width: 120, cell: (b) => when(b.createdAt), sort: (b) => (b.createdAt ? Date.parse(b.createdAt) : null) },
-    { label: 'Last updated', width: 120, cell: (b) => when(b.updatedAt), sort: (b) => (b.updatedAt ? Date.parse(b.updatedAt) : null) },
-    { label: 'Attribution', width: 140, cell: (b) => b.attribution ?? '—', sort: (b) => b.attribution },
+    {
+      label: "Add-ons",
+      width: 70,
+      align: "right",
+      cell: (b) => (b.addOnCents ? money(b.addOnCents) : "—"),
+      sort: (b) => b.addOnCents,
+    },
+    {
+      label: "Total",
+      width: 90,
+      align: "right",
+      cell: (b) =>
+        b.source === "draft"
+          ? `${money(b.subtotalCents)} est.`
+          : money(b.totalCents),
+      sort: (b) => (b.source === "draft" ? b.subtotalCents : b.totalCents),
+    },
+    {
+      label: "Created",
+      width: 120,
+      cell: (b) => when(b.createdAt),
+      sort: (b) => (b.createdAt ? Date.parse(b.createdAt) : null),
+    },
+    {
+      label: "Last updated",
+      width: 120,
+      cell: (b) => when(b.updatedAt),
+      sort: (b) => (b.updatedAt ? Date.parse(b.updatedAt) : null),
+    },
+    {
+      label: "Attribution",
+      width: 140,
+      cell: (b) => b.attribution ?? "—",
+      sort: (b) => b.attribution,
+    },
   ];
-  const [boxColumns, setBoxColumns] = useColumnVisibility('gj.adminBoxes.columns.boxes', columns);
-  const shownColumns = boxColumns ? columns.filter((c) => boxColumns.has(c.label)) : null;
+  const [boxColumns, setBoxColumns] = useColumnVisibility(
+    "gj.adminBoxes.columns.boxes",
+    columns,
+  );
+  const shownColumns = boxColumns
+    ? columns.filter((c) => boxColumns.has(c.label))
+    : null;
 
   return (
     <View style={styles.sectionBody}>
@@ -916,19 +1250,47 @@ function BoxesSection({
         onChange={setStatus}
         styles={styles}
         options={[
-          ['active', mobile ? 'Not cancelled' : 'All except cancelled'],
-          ['draft', 'Drafts'],
-          ['open', mobile ? 'Committed' : 'Committed, not charged'],
-          ['fulfilled', mobile ? 'Charged' : 'Charged / shipped'],
-          ['cancelled', 'Cancelled'],
-          ['all', mobile ? 'All' : 'Everything'],
+          ["active", mobile ? "Not cancelled" : "All except cancelled"],
+          ["draft", "Drafts"],
+          ["open", mobile ? "Committed" : "Committed, not charged"],
+          ["fulfilled", mobile ? "Charged" : "Charged / shipped"],
+          ["cancelled", "Cancelled"],
+          ["all", mobile ? "All" : "Everything"],
         ]}
       />
       <ChipRow styles={styles}>
-        <ChipGroup<YesNoAny> value={card} onChange={setCard} styles={styles} options={[['any', 'Card: any'], ['yes', 'Card on file'], ['no', 'No card']]} />
-        <ChipGroup<YesNoAny> value={addOns} onChange={setAddOns} styles={styles} options={[['any', 'Add-ons: any'], ['yes', 'Has add-ons'], ['no', 'No add-ons']]} />
-        <Chip label="Kosher" active={kosherOnly} onPress={() => setKosherOnly((v) => !v)} styles={styles} />
-        <Chip label={mobile ? 'Playthroughs' : 'Show playthrough'} active={showPlaythrough} onPress={() => setShowPlaythrough((v) => !v)} styles={styles} />
+        <ChipGroup<YesNoAny>
+          value={card}
+          onChange={setCard}
+          styles={styles}
+          options={[
+            ["any", "Card: any"],
+            ["yes", "Card on file"],
+            ["no", "No card"],
+          ]}
+        />
+        <ChipGroup<YesNoAny>
+          value={addOns}
+          onChange={setAddOns}
+          styles={styles}
+          options={[
+            ["any", "Add-ons: any"],
+            ["yes", "Has add-ons"],
+            ["no", "No add-ons"],
+          ]}
+        />
+        <Chip
+          label="Kosher"
+          active={kosherOnly}
+          onPress={() => setKosherOnly((v) => !v)}
+          styles={styles}
+        />
+        <Chip
+          label={mobile ? "Playthroughs" : "Show playthrough"}
+          active={showPlaythrough}
+          onPress={() => setShowPlaythrough((v) => !v)}
+          styles={styles}
+        />
       </ChipRow>
       <TextInput
         style={styles.input}
@@ -940,53 +1302,96 @@ function BoxesSection({
         autoCorrect={false}
       />
       {shownColumns ? (
-        <ColumnPicker columns={columns} visible={boxColumns!} onChange={setBoxColumns} styles={styles} colors={colors} />
+        <ColumnPicker
+          columns={columns}
+          visible={boxColumns!}
+          onChange={setBoxColumns}
+          styles={styles}
+          colors={colors}
+        />
       ) : null}
       <SortTable<DashBox>
         columns={shownColumns ?? columns}
         rows={shownColumns ? rows : []}
-        initialSort={{ label: 'Created', dir: 'desc' }}
+        initialSort={{ label: "Created", dir: "desc" }}
         rowKey={(b) => b.id}
         rowTone={(b) => {
-          if (b.status === 'cancelled') return 'neutral';
-          if (['shipped', 'delivered', 'confirmed'].includes(b.status)) return 'success';
-          if (!b.cardOnFile) return 'warning';
+          if (b.status === "cancelled") return "neutral";
+          if (["shipped", "delivered", "confirmed"].includes(b.status))
+            return "success";
+          if (!b.cardOnFile) return "warning";
           return undefined;
         }}
         openKey={openId}
         onToggle={(k) => setOpenId((prev) => (prev === k ? null : k))}
         renderDetail={(b) => (
           <View style={styles.detailInner}>
-            <LineItems lines={b.lines} inventoryById={inventoryById} styles={styles} colors={colors} />
+            <LineItems
+              lines={b.lines}
+              inventoryById={inventoryById}
+              styles={styles}
+              colors={colors}
+            />
             <Facts
               styles={styles}
               facts={[
-                ['Box price', `${money(b.boxPriceCents)} (${b.kids} kid${b.kids === 1 ? '' : 's'})`],
-                ['Ages', b.kidAges?.length ? b.kidAges.join(', ') : '—'],
-                ['Swaps', String(b.swaps ?? 0)],
-                ['Add-ons', money(b.addOnCents)],
-                ['Subtotal', b.source === 'draft' ? `${money(b.subtotalCents)} est.` : money(b.subtotalCents)],
-                ['Shipping', money(b.shippingCents)],
-                ['Tax', money(b.taxCents)],
-                ['Credit applied', b.creditCents ? `−${money(b.creditCents)}` : '—'],
-                ['Total', money(b.totalCents)],
-                ['Committed', when(b.committedAt)],
-                ['Onboarding note', b.note?.trim() ? b.note.trim() : '—'],
-                ['Kosher', b.kosher ? b.kosherNote ?? 'Yes' : '—'],
+                [
+                  "Box price",
+                  `${money(b.boxPriceCents)} (${b.kids} kid${b.kids === 1 ? "" : "s"})`,
+                ],
+                ["Ages", b.kidAges?.length ? b.kidAges.join(", ") : "—"],
+                ["Swaps", String(b.swaps ?? 0)],
+                ["Add-ons", money(b.addOnCents)],
+                [
+                  "Subtotal",
+                  b.source === "draft"
+                    ? `${money(b.subtotalCents)} est.`
+                    : money(b.subtotalCents),
+                ],
+                ["Shipping", money(b.shippingCents)],
+                ["Tax", money(b.taxCents)],
+                [
+                  "Credit applied",
+                  b.creditCents ? `−${money(b.creditCents)}` : "—",
+                ],
+                ["Total", money(b.totalCents)],
+                ["Committed", when(b.committedAt)],
+                ["Onboarding note", b.note?.trim() ? b.note.trim() : "—"],
+                ["Kosher", b.kosher ? (b.kosherNote ?? "Yes") : "—"],
                 ...(b.cardOnFile
-                  ? ([['Card added', b.cardSession ? cardSessionLong(b.cardSession) : 'Session not recorded']] as Array<[string, string]>)
+                  ? ([
+                      [
+                        "Card added",
+                        b.cardSession
+                          ? cardSessionLong(b.cardSession)
+                          : "Session not recorded",
+                      ],
+                    ] as Array<[string, string]>)
                   : []),
-                ['Household', b.householdId],
-                ['Order', b.orderId ?? 'draft (no order)'],
+                ["Household", b.householdId],
+                ["Order", b.orderId ?? "draft (no order)"],
               ]}
             />
           </View>
         )}
-        emptyMessage={hideTests ? 'No real customer boxes match. Turn off Hide tests to see test boxes.' : 'No boxes match these filters.'}
+        emptyMessage={
+          hideTests
+            ? "No real customer boxes match. Turn off Hide tests to see test boxes."
+            : "No boxes match these filters."
+        }
         styles={styles}
         colors={colors}
       />
-      {rows.length ? <Text style={styles.caption}>{stateSummary(rows.map((b) => ({ location: b.location, fromIp: b.locationFromIp })))}</Text> : null}
+      {rows.length ? (
+        <Text style={styles.caption}>
+          {stateSummary(
+            rows.map((b) => ({
+              location: b.location,
+              fromIp: b.locationFromIp,
+            })),
+          )}
+        </Text>
+      ) : null}
       <Text style={styles.caption}>
         {mobile
           ? `${rows.length} of ${data.boxes.length} boxes. Tap one for items + onboarding note. Ages and swaps on the card; Source on each item is Default / Swapped / Added. Dot: green charged, amber no card, grey cancelled.`
@@ -1009,8 +1414,8 @@ function GiftsSection({
   styles: Styles;
   colors: SemanticColors;
 }) {
-  const [kind, setKind] = useState<'any' | 'box' | 'credit'>('any');
-  const [paid, setPaid] = useState<YesNoAny>('any');
+  const [kind, setKind] = useState<"any" | "box" | "credit">("any");
+  const [paid, setPaid] = useState<YesNoAny>("any");
   const [showPlaythrough, setShowPlaythrough] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -1019,46 +1424,140 @@ function GiftsSection({
       data.gifts.filter((g) => {
         if (!showPlaythrough && g.playthrough) return false;
         if (hideTests && g.test) return false;
-        if (kind !== 'any' && g.kind !== kind) return false;
-        if (paid === 'yes' && !g.paid) return false;
-        if (paid === 'no' && g.paid) return false;
+        if (kind !== "any" && g.kind !== kind) return false;
+        if (paid === "yes" && !g.paid) return false;
+        if (paid === "no" && g.paid) return false;
         return true;
       }),
     [data, kind, paid, showPlaythrough, hideTests],
   );
 
   const columns: Column<DashGift>[] = [
-    { label: 'Giver', width: 190, cell: (g) => <Who name={g.giver} email={g.giverEmail} styles={styles} />, sort: (g) => (g.giver ?? g.giverEmail ?? '').toLowerCase() },
-    { label: 'Giver from', width: 100, cell: (g) => placeLabel({ location: g.giverLocation, fromIp: true }), sort: (g) => g.giverLocation ?? null },
-    { label: 'Recipient', width: 190, cell: (g) => <Who name={g.recipientName} email={g.recipientEmail} styles={styles} />, sort: (g) => (g.recipientName ?? g.recipientEmail ?? '').toLowerCase() },
-    { label: 'Ships to', width: 90, cell: (g) => g.location ?? '—', sort: (g) => g.location ?? null },
+    {
+      label: "Giver",
+      width: 190,
+      cell: (g) => <Who name={g.giver} email={g.giverEmail} styles={styles} />,
+      sort: (g) => (g.giver ?? g.giverEmail ?? "").toLowerCase(),
+    },
+    {
+      label: "Giver from",
+      width: 100,
+      cell: (g) => placeLabel({ location: g.giverLocation, fromIp: true }),
+      sort: (g) => g.giverLocation ?? null,
+    },
+    {
+      label: "Recipient",
+      width: 190,
+      cell: (g) => (
+        <Who name={g.recipientName} email={g.recipientEmail} styles={styles} />
+      ),
+      sort: (g) => (g.recipientName ?? g.recipientEmail ?? "").toLowerCase(),
+    },
+    {
+      label: "Ships to",
+      width: 90,
+      cell: (g) => g.location ?? "—",
+      sort: (g) => g.location ?? null,
+    },
     ...answerColumns<DashGift>((g) => g.recipientAnswers),
-    { label: 'Kind', width: 110, cell: (g) => (g.kind === 'box' ? `Box (${g.lines.length} items)` : 'Credit'), sort: (g) => g.kind },
-    { label: 'Amount', width: 80, align: 'right', cell: (g) => money(g.amountCents), sort: (g) => g.amountCents },
-    { label: 'Paid', width: 50, cell: (g) => (g.paid ? 'Yes' : 'No'), sort: (g) => (g.paid ? 1 : 0) },
-    { label: 'State', width: 140, cell: (g) => giftState(g), sort: (g) => giftState(g) },
-    { label: 'Holds stock', width: 90, cell: (g) => (g.holdingStock ? 'Yes' : '—'), sort: (g) => (g.holdingStock ? 1 : 0) },
-    { label: 'Created', width: 120, cell: (g) => when(g.createdAt), sort: (g) => (g.createdAt ? Date.parse(g.createdAt) : null) },
+    {
+      label: "Kind",
+      width: 110,
+      cell: (g) =>
+        g.kind === "box" ? `Box (${g.lines.length} items)` : "Credit",
+      sort: (g) => g.kind,
+    },
+    {
+      label: "Amount",
+      width: 80,
+      align: "right",
+      cell: (g) => money(g.amountCents),
+      sort: (g) => g.amountCents,
+    },
+    {
+      label: "Paid",
+      width: 50,
+      cell: (g) => (g.paid ? "Yes" : "No"),
+      sort: (g) => (g.paid ? 1 : 0),
+    },
+    {
+      label: "State",
+      width: 140,
+      cell: (g) => giftState(g),
+      sort: (g) => giftState(g),
+    },
+    {
+      label: "Holds stock",
+      width: 90,
+      cell: (g) => (g.holdingStock ? "Yes" : "—"),
+      sort: (g) => (g.holdingStock ? 1 : 0),
+    },
+    {
+      label: "Created",
+      width: 120,
+      cell: (g) => when(g.createdAt),
+      sort: (g) => (g.createdAt ? Date.parse(g.createdAt) : null),
+    },
   ];
 
   return (
     <View style={styles.sectionBody}>
       <ChipRow styles={styles}>
-        <ChipGroup value={kind} onChange={setKind} styles={styles} options={[['any', 'Kind: any'], ['box', 'Box gifts'], ['credit', 'Credit gifts']]} />
-        <ChipGroup<YesNoAny> value={paid} onChange={setPaid} styles={styles} options={[['any', 'Paid: any'], ['yes', 'Paid'], ['no', 'Unpaid']]} />
-        <Chip label="Show playthrough" active={showPlaythrough} onPress={() => setShowPlaythrough((v) => !v)} styles={styles} />
+        <ChipGroup
+          value={kind}
+          onChange={setKind}
+          styles={styles}
+          options={[
+            ["any", "Kind: any"],
+            ["box", "Box gifts"],
+            ["credit", "Credit gifts"],
+          ]}
+        />
+        <ChipGroup<YesNoAny>
+          value={paid}
+          onChange={setPaid}
+          styles={styles}
+          options={[
+            ["any", "Paid: any"],
+            ["yes", "Paid"],
+            ["no", "Unpaid"],
+          ]}
+        />
+        <Chip
+          label="Show playthrough"
+          active={showPlaythrough}
+          onPress={() => setShowPlaythrough((v) => !v)}
+          styles={styles}
+        />
       </ChipRow>
       <SortTable<DashGift>
         columns={columns}
         rows={rows}
         rowKey={(g) => g.id}
-        rowTone={(g) => (g.checkedOut ? 'success' : g.paid && !g.claimed ? 'info' : !g.paid ? 'neutral' : undefined)}
+        rowTone={(g) =>
+          g.checkedOut
+            ? "success"
+            : g.paid && !g.claimed
+              ? "info"
+              : !g.paid
+                ? "neutral"
+                : undefined
+        }
         openKey={openId}
         onToggle={(k) => setOpenId((prev) => (prev === k ? null : k))}
         renderDetail={(g) => (
           <View style={styles.detailInner}>
-            {g.message ? <Text style={styles.quote}>{`“${g.message}”`}</Text> : null}
-            {g.lines.length ? <LineItems lines={g.lines} inventoryById={inventoryById} styles={styles} colors={colors} /> : null}
+            {g.message ? (
+              <Text style={styles.quote}>{`“${g.message}”`}</Text>
+            ) : null}
+            {g.lines.length ? (
+              <LineItems
+                lines={g.lines}
+                inventoryById={inventoryById}
+                styles={styles}
+                colors={colors}
+              />
+            ) : null}
             {g.checkoutOrders.length ? (
               <Facts
                 styles={styles}
@@ -1068,21 +1567,33 @@ function GiftsSection({
                 ])}
               />
             ) : null}
-            <Text style={styles.caption}>{`Invite ${g.id} · payment status ${g.paymentStatus ?? 'none'}`}</Text>
+            <Text
+              style={styles.caption}
+            >{`Invite ${g.id} · payment status ${g.paymentStatus ?? "none"}`}</Text>
           </View>
         )}
-        emptyMessage={hideTests ? 'No real customer gifts match. Turn off Hide tests to see test gifts.' : 'No gifts match these filters.'}
+        emptyMessage={
+          hideTests
+            ? "No real customer gifts match. Turn off Hide tests to see test gifts."
+            : "No gifts match these filters."
+        }
         styles={styles}
         colors={colors}
       />
       {rows.length ? (
         <Text style={styles.caption}>
           {[
-            stateSummary(rows.map((g) => ({ location: g.location })), 'Ships to'),
-            stateSummary(rows.map((g) => ({ location: g.giverLocation, fromIp: true })), 'Givers from'),
+            stateSummary(
+              rows.map((g) => ({ location: g.location })),
+              "Ships to",
+            ),
+            stateSummary(
+              rows.map((g) => ({ location: g.giverLocation, fromIp: true })),
+              "Givers from",
+            ),
           ]
             .filter(Boolean)
-            .join('\n')}
+            .join("\n")}
         </Text>
       ) : null}
       <Text style={styles.caption}>
@@ -1092,39 +1603,45 @@ function GiftsSection({
   );
 }
 
-const BOX_PROBLEM_KIND: Record<DashBoxProblem['kind'], string> = {
-  account: 'Account draft',
-  guest: 'Signed-out box',
-  gift: 'Gift draft',
-  order: 'Order',
+const BOX_PROBLEM_KIND: Record<DashBoxProblem["kind"], string> = {
+  account: "Account draft",
+  guest: "Signed-out box",
+  gift: "Gift draft",
+  order: "Order",
 };
 
-type BoxProblemLine = DashBoxProblem['problems'][number];
+type BoxProblemLine = DashBoxProblem["problems"][number];
 
 function problemIsOpen(p: BoxProblemLine): boolean {
   if (p.grandfathered) return false;
-  if (p.decision === 'approve' || p.decision === 'donation') return false;
+  if (p.decision === "approve" || p.decision === "donation") return false;
   if (p.approved) return false;
   if (p.likelyDonation) return false;
   return true;
 }
 
 function problemStatus(p: BoxProblemLine): string {
-  if (p.decision === 'approve') return `Your call: approve as-is${p.decisionNote ? ` — ${p.decisionNote}` : ''}`;
-  if (p.decision === 'donation') return `Your call: donation${p.decisionNote ? ` — ${p.decisionNote}` : ''}`;
-  if (p.decision === 'follow-up') return `Your call: needs a fix${p.decisionNote ? ` — ${p.decisionNote}` : ''}`;
-  if (p.decision === 'emailed') return `Your call: emailed customer${p.decisionNote ? ` — ${p.decisionNote}` : ''}`;
+  if (p.decision === "approve")
+    return `Your call: approve as-is${p.decisionNote ? ` — ${p.decisionNote}` : ""}`;
+  if (p.decision === "donation")
+    return `Your call: donation${p.decisionNote ? ` — ${p.decisionNote}` : ""}`;
+  if (p.decision === "follow-up")
+    return `Your call: needs a fix${p.decisionNote ? ` — ${p.decisionNote}` : ""}`;
+  if (p.decision === "emailed")
+    return `Your call: emailed customer${p.decisionNote ? ` — ${p.decisionNote}` : ""}`;
   if (p.approved) return `Approved: ${p.approved}`;
-  if (p.grandfathered) return 'Grandfathered (earlier rule)';
-  if (p.likelyDonation) return 'Likely a donation';
-  return p.direction === 'under' ? 'Open: customer charged or short' : 'Open: more free than allowed';
+  if (p.grandfathered) return "Grandfathered (earlier rule)";
+  if (p.likelyDonation) return "Likely a donation";
+  return p.direction === "under"
+    ? "Open: customer charged or short"
+    : "Open: more free than allowed";
 }
 
 const DECISION_BUTTONS: Array<{ kind: BoxAuditDecisionKind; label: string }> = [
-  { kind: 'approve', label: 'Approve as-is' },
-  { kind: 'donation', label: 'Donation' },
-  { kind: 'follow-up', label: 'Needs a fix' },
-  { kind: 'emailed', label: 'Emailed them' },
+  { kind: "approve", label: "Approve as-is" },
+  { kind: "donation", label: "Donation" },
+  { kind: "follow-up", label: "Needs a fix" },
+  { kind: "emailed", label: "Emailed them" },
 ];
 
 function BoxProblemReview({
@@ -1139,8 +1656,11 @@ function BoxProblemReview({
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const decide = async (p: BoxProblemLine, decision: BoxAuditDecisionKind | null) => {
-    const key = `${p.section}|${p.code}|${p.itemId ?? ''}|${p.childKey ?? ''}|${decision ?? 'clear'}`;
+  const decide = async (
+    p: BoxProblemLine,
+    decision: BoxAuditDecisionKind | null,
+  ) => {
+    const key = `${p.section}|${p.code}|${p.itemId ?? ""}|${p.childKey ?? ""}|${decision ?? "clear"}`;
     setBusyKey(key);
     setError(null);
     try {
@@ -1156,14 +1676,17 @@ function BoxProblemReview({
       });
       onDecided();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save decision.');
+      setError(e instanceof Error ? e.message : "Could not save decision.");
     } finally {
       setBusyKey(null);
     }
   };
 
-  const applyFix = async (p: BoxProblemLine, fix: NonNullable<BoxProblemLine['fixes']>[number]) => {
-    const key = `${p.section}|${p.code}|${p.itemId ?? ''}|${p.childKey ?? ''}|fix:${fix.id}`;
+  const applyFix = async (
+    p: BoxProblemLine,
+    fix: NonNullable<BoxProblemLine["fixes"]>[number],
+  ) => {
+    const key = `${p.section}|${p.code}|${p.itemId ?? ""}|${p.childKey ?? ""}|fix:${fix.id}`;
     setBusyKey(key);
     setError(null);
     try {
@@ -1183,7 +1706,7 @@ function BoxProblemReview({
       });
       onDecided();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not apply that fix.');
+      setError(e instanceof Error ? e.message : "Could not apply that fix.");
     } finally {
       setBusyKey(null);
     }
@@ -1192,24 +1715,37 @@ function BoxProblemReview({
   return (
     <View style={styles.detailInner}>
       {box.problems.map((p) => {
-        const rowKey = `${p.section}|${p.code}|${p.itemId ?? ''}|${p.childKey ?? ''}`;
+        const rowKey = `${p.section}|${p.code}|${p.itemId ?? ""}|${p.childKey ?? ""}`;
         return (
           <View key={rowKey} style={{ marginBottom: spacing.md }}>
             <Text style={styles.factKey}>
               {p.section}
-              {p.childKey ? ` (${p.childKey})` : ''}
+              {p.childKey ? ` (${p.childKey})` : ""}
             </Text>
-            <Text style={styles.factValue}>{`${p.detail} · ${problemStatus(p)}`}</Text>
+            <Text
+              style={styles.factValue}
+            >{`${p.detail} · ${problemStatus(p)}`}</Text>
             {problemIsOpen(p) && p.fixes?.length ? (
               <>
-                <Text style={[styles.caption, { marginTop: spacing.xs }]}>What I'd do</Text>
-                <ChipRow styles={styles} style={{ marginTop: spacing.xs, flexWrap: 'wrap' }}>
+                <Text style={[styles.caption, { marginTop: spacing.xs }]}>
+                  What I'd do
+                </Text>
+                <ChipRow
+                  styles={styles}
+                  style={{ marginTop: spacing.xs, flexWrap: "wrap" }}
+                >
                   {p.fixes.map((fix) => {
                     const thisBusy = busyKey === `${rowKey}|fix:${fix.id}`;
                     return (
                       <Chip
                         key={fix.id}
-                        label={thisBusy ? 'Saving…' : fix.recommended ? `Recommended: ${fix.label}` : fix.label}
+                        label={
+                          thisBusy
+                            ? "Saving…"
+                            : fix.recommended
+                              ? `Recommended: ${fix.label}`
+                              : fix.label
+                        }
                         active={fix.recommended}
                         wrap
                         onPress={() => {
@@ -1221,17 +1757,22 @@ function BoxProblemReview({
                     );
                   })}
                 </ChipRow>
-                <Text style={styles.caption}>{p.fixes.find((fix) => fix.recommended)?.detail}</Text>
+                <Text style={styles.caption}>
+                  {p.fixes.find((fix) => fix.recommended)?.detail}
+                </Text>
               </>
             ) : null}
-            <ChipRow styles={styles} style={{ marginTop: spacing.xs, flexWrap: 'wrap' }}>
+            <ChipRow
+              styles={styles}
+              style={{ marginTop: spacing.xs, flexWrap: "wrap" }}
+            >
               {DECISION_BUTTONS.map((btn) => {
                 const active = p.decision === btn.kind;
                 const thisBusy = busyKey === `${rowKey}|${btn.kind}`;
                 return (
                   <Chip
                     key={btn.kind}
-                    label={thisBusy ? 'Saving…' : btn.label}
+                    label={thisBusy ? "Saving…" : btn.label}
                     active={active}
                     onPress={() => {
                       if (busyKey) return;
@@ -1245,7 +1786,9 @@ function BoxProblemReview({
           </View>
         );
       })}
-      {error ? <Text style={[styles.caption, { color: '#b42318' }]}>{error}</Text> : null}
+      {error ? (
+        <Text style={[styles.caption, { color: "#b42318" }]}>{error}</Text>
+      ) : null}
       <Text style={styles.caption} selectable>
         {`${box.path} · audited ${when(box.auditedAt)}. The recommended button is the change I'd make. Approve as-is and Donation clear the open count; Needs a fix and Emailed them keep it listed. Tap an active decision again to clear it.`}
       </Text>
@@ -1266,24 +1809,34 @@ function BoxProblemsSection({
   colors: SemanticColors;
   onRefresh: () => void;
 }) {
-  const [show, setShow] = useState<'open' | 'all'>('open');
-  const [committed, setCommitted] = useState<YesNoAny>('any');
+  const [show, setShow] = useState<"open" | "all">("open");
+  const [committed, setCommitted] = useState<YesNoAny>("any");
   const [openId, setOpenId] = useState<string | null>(null);
   const all = data.boxProblems ?? [];
   const customerByHousehold = useMemo(
-    () => new Map(data.boxes.filter((b) => b.customer).map((b) => [b.householdId, b.customer])),
+    () =>
+      new Map(
+        data.boxes
+          .filter((b) => b.customer)
+          .map((b) => [b.householdId, b.customer]),
+      ),
     [data.boxes],
   );
 
   const rows = useMemo(() => {
     // Belt-and-suspenders: hide account drafts when the same household already has an order row.
-    const withOrder = new Set(all.filter((b) => b.kind === 'order' && b.householdId).map((b) => b.householdId as string));
+    const withOrder = new Set(
+      all
+        .filter((b) => b.kind === "order" && b.householdId)
+        .map((b) => b.householdId as string),
+    );
     return all.filter((b) => {
       if (hideTests && b.test) return false;
-      if (b.kind === 'account' && b.householdId && withOrder.has(b.householdId)) return false;
-      if (show === 'open' && b.open === 0) return false;
-      if (committed === 'yes' && !b.committed) return false;
-      if (committed === 'no' && b.committed) return false;
+      if (b.kind === "account" && b.householdId && withOrder.has(b.householdId))
+        return false;
+      if (show === "open" && b.open === 0) return false;
+      if (committed === "yes" && !b.committed) return false;
+      if (committed === "no" && b.committed) return false;
       return true;
     });
   }, [all, hideTests, show, committed]);
@@ -1291,22 +1844,62 @@ function BoxProblemsSection({
   const openLines = (b: DashBoxProblem) => b.problems.filter(problemIsOpen);
   const columns: Column<DashBoxProblem>[] = [
     {
-      label: 'Customer',
+      label: "Customer",
       width: 210,
-      cell: (b) => <Who name={b.householdId ? customerByHousehold.get(b.householdId) ?? null : null} email={b.email} styles={styles} />,
+      cell: (b) => (
+        <Who
+          name={
+            b.householdId
+              ? (customerByHousehold.get(b.householdId) ?? null)
+              : null
+          }
+          email={b.email}
+          styles={styles}
+        />
+      ),
       sort: (b) => (b.email ?? b.path).toLowerCase(),
     },
-    { label: 'Box', width: 120, cell: (b) => BOX_PROBLEM_KIND[b.kind], sort: (b) => b.kind },
-    { label: 'Committed', width: 80, cell: (b) => (b.committed ? 'Yes' : '—'), sort: (b) => (b.committed ? 1 : 0) },
-    { label: 'Open', width: 60, align: 'right', cell: (b) => (b.open ? String(b.open) : '—'), sort: (b) => b.open },
     {
-      label: 'Problems',
+      label: "Box",
+      width: 120,
+      cell: (b) => BOX_PROBLEM_KIND[b.kind],
+      sort: (b) => b.kind,
+    },
+    {
+      label: "Committed",
+      width: 80,
+      cell: (b) => (b.committed ? "Yes" : "—"),
+      sort: (b) => (b.committed ? 1 : 0),
+    },
+    {
+      label: "Open",
+      width: 60,
+      align: "right",
+      cell: (b) => (b.open ? String(b.open) : "—"),
+      sort: (b) => b.open,
+    },
+    {
+      label: "Problems",
       width: 360,
-      cell: (b) => (openLines(b).length ? openLines(b) : b.problems).map((p) => p.detail).join('; '),
+      cell: (b) =>
+        (openLines(b).length ? openLines(b) : b.problems)
+          .map((p) => p.detail)
+          .join("; "),
       sort: (b) => b.problems[0]?.section ?? null,
     },
-    { label: 'Household', width: 90, cell: (b) => `${b.kids} kid${b.kids === 1 ? '' : 's'}, ${b.people} people`, sort: (b) => b.people },
-    { label: 'Open since', width: 120, cell: (b) => when(b.openSince), sort: (b) => (b.openSince ? Date.parse(b.openSince) : null) },
+    {
+      label: "Household",
+      width: 90,
+      cell: (b) =>
+        `${b.kids} kid${b.kids === 1 ? "" : "s"}, ${b.people} people`,
+      sort: (b) => b.people,
+    },
+    {
+      label: "Open since",
+      width: 120,
+      cell: (b) => when(b.openSince),
+      sort: (b) => (b.openSince ? Date.parse(b.openSince) : null),
+    },
   ];
 
   const run = data.boxAuditRun;
@@ -1317,52 +1910,91 @@ function BoxProblemsSection({
     <View style={styles.sectionBody}>
       <Text style={styles.section}>Fix log</Text>
       <Text style={styles.hint}>
-        Choosing a fix logs it here. Box history is attached when we have it. The cause, from GA4 and Clarity, is discussed in chat, and the structural fix is written back onto the row.
+        Choosing a fix logs it here. Box history is attached when we have it.
+        The cause, from GA4 and Clarity, is discussed in chat, and the
+        structural fix is written back onto the row.
       </Text>
-      {fixLog.length === 0 ? <Text style={styles.caption}>No fixes logged yet.</Text> : null}
+      {fixLog.length === 0 ? (
+        <Text style={styles.caption}>No fixes logged yet.</Text>
+      ) : null}
       {fixLog.map((entry) => (
         <View key={entry.id} style={{ marginBottom: spacing.sm }}>
-          <Text style={styles.factValue}>{`${when(entry.at)} · ${entry.email ?? entry.path}`}</Text>
-          <Text style={styles.caption}>{`${entry.fixLabel} — ${entry.detail}`}</Text>
-          {entry.historyNote ? <Text style={styles.caption}>{entry.historyNote}</Text> : null}
-          {entry.cause ? <Text style={styles.caption}>{`Cause: ${entry.cause}`}</Text> : null}
-          {entry.proposal ? <Text style={styles.caption}>{`Structural fix: ${entry.proposal}`}</Text> : null}
+          <Text
+            style={styles.factValue}
+          >{`${when(entry.at)} · ${entry.email ?? entry.path}`}</Text>
+          <Text
+            style={styles.caption}
+          >{`${entry.fixLabel} — ${entry.detail}`}</Text>
+          {entry.historyNote ? (
+            <Text style={styles.caption}>{entry.historyNote}</Text>
+          ) : null}
+          {entry.cause ? (
+            <Text style={styles.caption}>{`Cause: ${entry.cause}`}</Text>
+          ) : null}
+          {entry.proposal ? (
+            <Text
+              style={styles.caption}
+            >{`Structural fix: ${entry.proposal}`}</Text>
+          ) : null}
           {!entry.cause && !entry.proposal ? (
-            <Text style={styles.caption}>Open. Discuss the cause in chat so the loophole can be closed.</Text>
+            <Text style={styles.caption}>
+              Open. Discuss the cause in chat so the loophole can be closed.
+            </Text>
           ) : null}
         </View>
       ))}
       <ChipRow styles={styles}>
-        <ChipGroup value={show} onChange={setShow} styles={styles} options={[['open', 'Open problems'], ['all', 'Everything listed']]} />
-        <ChipGroup<YesNoAny> value={committed} onChange={setCommitted} styles={styles} options={[['any', 'Committed: any'], ['yes', 'Committed'], ['no', 'Not committed']]} />
+        <ChipGroup
+          value={show}
+          onChange={setShow}
+          styles={styles}
+          options={[
+            ["open", "Open problems"],
+            ["all", "Everything listed"],
+          ]}
+        />
+        <ChipGroup<YesNoAny>
+          value={committed}
+          onChange={setCommitted}
+          styles={styles}
+          options={[
+            ["any", "Committed: any"],
+            ["yes", "Committed"],
+            ["no", "Not committed"],
+          ]}
+        />
       </ChipRow>
       <SortTable<DashBoxProblem>
         columns={columns}
         rows={rows}
         rowKey={(b) => b.id}
-        rowTone={(b) => (b.open && b.committed ? 'danger' : b.open ? 'warning' : 'neutral')}
+        rowTone={(b) =>
+          b.open && b.committed ? "danger" : b.open ? "warning" : "neutral"
+        }
         openKey={openId}
         onToggle={(k) => setOpenId((prev) => (prev === k ? null : k))}
-        renderDetail={(b) => <BoxProblemReview box={b} styles={styles} onDecided={onRefresh} />}
+        renderDetail={(b) => (
+          <BoxProblemReview box={b} styles={styles} onDecided={onRefresh} />
+        )}
         emptyMessage={
           data.boxProblems
-            ? show === 'open'
-              ? 'No boxes with open problems. Choose Everything listed to see approved exceptions and likely donations.'
-              : 'No boxes with problems.'
-            : 'Box problems appear once the updated dashboard function is deployed.'
+            ? show === "open"
+              ? "No boxes with open problems. Choose Everything listed to see approved exceptions and likely donations."
+              : "No boxes with problems."
+            : "Box problems appear once the updated dashboard function is deployed."
         }
         styles={styles}
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`${rows.length} of ${all.length} boxes with anything listed. ${liveOpen.length} open now${liveCommitted ? ` (${liveCommitted} committed)` : ''}. Expand a row to apply a fix or record a decision. Every box is checked against what's included whenever it changes and every morning at 6am Eastern. Dot: red open on a committed box, amber open.${run ? ` Last full check ${when(run.at)} scanned ${run.real} real boxes.` : ''}`}
+        {`${rows.length} of ${all.length} boxes with anything listed. ${liveOpen.length} open now${liveCommitted ? ` (${liveCommitted} committed)` : ""}. Expand a row to apply a fix or record a decision. Every box is checked against what's included whenever it changes and every morning at 6am Eastern. Dot: red open on a committed box, amber open.${run ? ` Last full check ${when(run.at)} scanned ${run.real} real boxes.` : ""}`}
       </Text>
     </View>
   );
 }
 
-type GuestSignupFilter = 'open' | 'converted' | 'all';
-type GuestStageFilter = 'any' | 'box' | 'answered' | 'started' | 'gift';
+type GuestSignupFilter = "open" | "converted" | "all";
+type GuestStageFilter = "any" | "box" | "answered" | "started" | "gift";
 
 function AnonymousSection({
   guests,
@@ -1377,22 +2009,23 @@ function AnonymousSection({
   styles: Styles;
   colors: SemanticColors;
 }) {
-  const [signup, setSignup] = useState<GuestSignupFilter>('open');
-  const [stage, setStage] = useState<GuestStageFilter>('any');
-  const [lead, setLead] = useState<YesNoAny>('any');
+  const [signup, setSignup] = useState<GuestSignupFilter>("open");
+  const [stage, setStage] = useState<GuestStageFilter>("any");
+  const [lead, setLead] = useState<YesNoAny>("any");
   const [openId, setOpenId] = useState<string | null>(null);
 
   const rows = useMemo(
     () =>
       guests.filter((g) => {
-        if (signup === 'open' && g.converted) return false;
-        if (signup === 'converted' && !g.converted) return false;
-        if (stage === 'box' && g.stage !== 'built' && g.stage !== 'revealed') return false;
-        if (stage === 'answered' && g.stage !== 'answered') return false;
-        if (stage === 'started' && g.stage !== 'started') return false;
-        if (stage === 'gift' && !g.gift) return false;
-        if (lead === 'yes' && !g.leadAt) return false;
-        if (lead === 'no' && g.leadAt) return false;
+        if (signup === "open" && g.converted) return false;
+        if (signup === "converted" && !g.converted) return false;
+        if (stage === "box" && g.stage !== "built" && g.stage !== "revealed")
+          return false;
+        if (stage === "answered" && g.stage !== "answered") return false;
+        if (stage === "started" && g.stage !== "started") return false;
+        if (stage === "gift" && !g.gift) return false;
+        if (lead === "yes" && !g.leadAt) return false;
+        if (lead === "no" && g.leadAt) return false;
         return true;
       }),
     [guests, signup, stage, lead],
@@ -1400,27 +2033,72 @@ function AnonymousSection({
 
   const columns: Column<DashGuest>[] = [
     {
-      label: 'Visitor',
+      label: "Visitor",
       width: 150,
-      cell: (g) => <Who name={g.id.slice(0, 8)} email={g.source} styles={styles} />,
-      sort: (g) => g.source ?? '',
+      cell: (g) => (
+        <Who name={g.id.slice(0, 8)} email={g.source} styles={styles} />
+      ),
+      sort: (g) => g.source ?? "",
     },
-    { label: 'Stage', width: 140, cell: (g) => GUEST_STAGE_LABEL[g.stage], sort: (g) => g.stage },
-    { label: 'State', width: 100, cell: (g) => placeLabel({ location: g.location, fromIp: true }), sort: (g) => g.location ?? null },
-    { label: 'Kids', width: 50, align: 'right', cell: (g) => String(g.kids), sort: (g) => g.kids },
-    ...answerColumns<DashGuest>((g) => g.answers),
-    { label: 'Items', width: 55, align: 'right', cell: (g) => (g.lines.length ? String(g.lines.length) : '—'), sort: (g) => g.lines.length },
     {
-      label: 'Est. total',
+      label: "Stage",
+      width: 140,
+      cell: (g) => GUEST_STAGE_LABEL[g.stage],
+      sort: (g) => g.stage,
+    },
+    {
+      label: "State",
+      width: 100,
+      cell: (g) => placeLabel({ location: g.location, fromIp: true }),
+      sort: (g) => g.location ?? null,
+    },
+    {
+      label: "Kids",
+      width: 50,
+      align: "right",
+      cell: (g) => String(g.kids),
+      sort: (g) => g.kids,
+    },
+    ...answerColumns<DashGuest>((g) => g.answers),
+    {
+      label: "Items",
+      width: 55,
+      align: "right",
+      cell: (g) => (g.lines.length ? String(g.lines.length) : "—"),
+      sort: (g) => g.lines.length,
+    },
+    {
+      label: "Est. total",
       width: 85,
-      align: 'right',
-      cell: (g) => (g.lines.length ? money(g.boxPriceCents + g.addOnCents) : '—'),
+      align: "right",
+      cell: (g) =>
+        g.lines.length ? money(g.boxPriceCents + g.addOnCents) : "—",
       sort: (g) => (g.lines.length ? g.boxPriceCents + g.addOnCents : null),
     },
-    { label: 'Email given', width: 90, cell: (g) => (g.leadAt ? when(g.leadAt) : '—'), sort: (g) => (g.leadAt ? Date.parse(g.leadAt) : null) },
-    { label: 'Signed up', width: 75, cell: (g) => (g.converted ? 'Yes' : 'No'), sort: (g) => (g.converted ? 1 : 0) },
-    { label: 'Started', width: 120, cell: (g) => when(g.createdAt), sort: (g) => (g.createdAt ? Date.parse(g.createdAt) : null) },
-    { label: 'Last active', width: 120, cell: (g) => when(g.updatedAt), sort: (g) => (g.updatedAt ? Date.parse(g.updatedAt) : null) },
+    {
+      label: "Email given",
+      width: 90,
+      cell: (g) => (g.leadAt ? when(g.leadAt) : "—"),
+      sort: (g) => (g.leadAt ? Date.parse(g.leadAt) : null),
+    },
+    {
+      label: "Signed up",
+      width: 75,
+      cell: (g) => (g.converted ? "Yes" : "No"),
+      sort: (g) => (g.converted ? 1 : 0),
+    },
+    {
+      label: "Started",
+      width: 120,
+      cell: (g) => when(g.createdAt),
+      sort: (g) => (g.createdAt ? Date.parse(g.createdAt) : null),
+    },
+    {
+      label: "Last active",
+      width: 120,
+      cell: (g) => when(g.updatedAt),
+      sort: (g) => (g.updatedAt ? Date.parse(g.updatedAt) : null),
+    },
   ];
 
   return (
@@ -1430,9 +2108,9 @@ function AnonymousSection({
         onChange={setSignup}
         styles={styles}
         options={[
-          ['open', 'Not signed up'],
-          ['converted', 'Signed up later'],
-          ['all', 'Everyone'],
+          ["open", "Not signed up"],
+          ["converted", "Signed up later"],
+          ["all", "Everyone"],
         ]}
       />
       <ChipRow styles={styles}>
@@ -1441,46 +2119,81 @@ function AnonymousSection({
           onChange={setStage}
           styles={styles}
           options={[
-            ['any', 'Stage: any'],
-            ['box', 'Has a box'],
-            ['answered', 'Answered, no box'],
-            ['started', 'Started onboarding'],
-            ['gift', 'Gift drafts'],
+            ["any", "Stage: any"],
+            ["box", "Has a box"],
+            ["answered", "Answered, no box"],
+            ["started", "Started onboarding"],
+            ["gift", "Gift drafts"],
           ]}
         />
-        <ChipGroup<YesNoAny> value={lead} onChange={setLead} styles={styles} options={[['any', 'Email: any'], ['yes', 'Email given'], ['no', 'No email']]} />
+        <ChipGroup<YesNoAny>
+          value={lead}
+          onChange={setLead}
+          styles={styles}
+          options={[
+            ["any", "Email: any"],
+            ["yes", "Email given"],
+            ["no", "No email"],
+          ]}
+        />
       </ChipRow>
       <SortTable<DashGuest>
         columns={columns}
         rows={rows}
         rowKey={(g) => g.id}
-        rowTone={(g) => (g.converted ? 'success' : g.leadAt ? 'info' : g.stage === 'built' || g.stage === 'revealed' ? 'warning' : undefined)}
+        rowTone={(g) =>
+          g.converted
+            ? "success"
+            : g.leadAt
+              ? "info"
+              : g.stage === "built" || g.stage === "revealed"
+                ? "warning"
+                : undefined
+        }
         openKey={openId}
         onToggle={(k) => setOpenId((prev) => (prev === k ? null : k))}
         renderDetail={(g) => (
           <View style={styles.detailInner}>
-            {g.lines.length ? <LineItems lines={g.lines} inventoryById={inventoryById} styles={styles} colors={colors} /> : null}
+            {g.lines.length ? (
+              <LineItems
+                lines={g.lines}
+                inventoryById={inventoryById}
+                styles={styles}
+                colors={colors}
+              />
+            ) : null}
             <Facts
               styles={styles}
               facts={[
-                ['Visitor ID', g.id],
-                ['Onboarding step', g.step ?? '—'],
-                ['Box price', `${money(g.boxPriceCents)} (${g.kids} kid${g.kids === 1 ? '' : 's'})`],
-                ['Add-ons', money(g.addOnCents)],
-                ['Source', g.source ?? '—'],
-                ['Landing page', g.landingPath ?? '—'],
-                ['Last page', g.lastPath ?? '—'],
-                ['Signed up', g.converted ? when(g.convertedAt) : 'No'],
+                ["Visitor ID", g.id],
+                ["Onboarding step", g.step ?? "—"],
                 [
-                  'Gift draft',
-                  g.gift
-                    ? [g.gift.kind, g.gift.giverName && `from ${g.gift.giverName}`, g.gift.recipientEmail && `to ${g.gift.recipientEmail}`, g.gift.items ? `${g.gift.items} items` : null]
-                        .filter(Boolean)
-                        .join(' · ')
-                    : '—',
+                  "Box price",
+                  `${money(g.boxPriceCents)} (${g.kids} kid${g.kids === 1 ? "" : "s"})`,
                 ],
-                ['Resumed from email', g.resumeCount ? `${g.resumeCount}×` : '—'],
-                ['Saves', String(g.saveCount)],
+                ["Add-ons", money(g.addOnCents)],
+                ["Source", g.source ?? "—"],
+                ["Landing page", g.landingPath ?? "—"],
+                ["Last page", g.lastPath ?? "—"],
+                ["Signed up", g.converted ? when(g.convertedAt) : "No"],
+                [
+                  "Gift draft",
+                  g.gift
+                    ? [
+                        g.gift.kind,
+                        g.gift.giverName && `from ${g.gift.giverName}`,
+                        g.gift.recipientEmail && `to ${g.gift.recipientEmail}`,
+                        g.gift.items ? `${g.gift.items} items` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : "—",
+                ],
+                [
+                  "Resumed from email",
+                  g.resumeCount ? `${g.resumeCount}×` : "—",
+                ],
+                ["Saves", String(g.saveCount)],
               ]}
             />
           </View>
@@ -1489,7 +2202,13 @@ function AnonymousSection({
         styles={styles}
         colors={colors}
       />
-      {rows.length ? <Text style={styles.caption}>{stateSummary(rows.map((g) => ({ location: g.location, fromIp: true })))}</Text> : null}
+      {rows.length ? (
+        <Text style={styles.caption}>
+          {stateSummary(
+            rows.map((g) => ({ location: g.location, fromIp: true })),
+          )}
+        </Text>
+      ) : null}
       <Text style={styles.caption}>
         {`${rows.length} of ${guests.length} signed-out visitors who started a box or gift (${totalSessions} saved sessions; browsing with only favorites is left out, sessions expire after 60 days). Visitor is the first characters of the browser's visitor ID, with where they came from underneath. Email given = they entered an email we matched through Retention. Signed up later = they made an account, so their box also appears on the Boxes tab. Dot: green signed up, blue email given, amber built a box but neither. Test visits can't be told apart here. ${ANSWERS_CAPTION}`}
       </Text>
@@ -1497,24 +2216,27 @@ function AnonymousSection({
   );
 }
 
-type ShopRange = 'all' | 'today' | '7d' | '30d';
+type ShopRange = "all" | "today" | "7d" | "30d";
 
 function shopAvailabilityLabel(i: DashInventoryRow): string {
-  if (i.shopStatus === 'box_only') return 'Box only';
-  if (i.shopStatus === 'sold_out') return 'Sold out';
-  return i.shopRemaining == null ? '—' : String(i.shopRemaining);
+  if (i.shopStatus === "box_only") return "Box only";
+  if (i.shopStatus === "sold_out") return "Sold out";
+  return i.shopRemaining == null ? "—" : String(i.shopRemaining);
 }
 
 function shopStatusLabel(o: DashShopOrder): string {
-  if (o.status === 'committed') return 'Committed, charged at lock';
-  if (o.status === 'cancelled' && o.paid) return 'Cancelled after payment';
-  if (o.refundedCents > 0 && o.status !== 'refunded') return `${statusLabel(o.status)}, part refunded`;
+  if (o.status === "committed") return "Committed, charged at lock";
+  if (o.status === "cancelled" && o.paid) return "Cancelled after payment";
+  if (o.refundedCents > 0 && o.status !== "refunded")
+    return `${statusLabel(o.status)}, part refunded`;
   return statusLabel(o.status);
 }
 
-const shopLinesSummary = (o: DashShopOrder) => o.lines.map((l) => `${l.name} ×${l.qty}`).join(', ');
+const shopLinesSummary = (o: DashShopOrder) =>
+  o.lines.map((l) => `${l.name} ×${l.qty}`).join(", ");
 /** Revenue kept: total less refunds. */
-const shopNetCents = (o: DashShopOrder) => Math.max(0, (o.totalCents ?? 0) - o.refundedCents);
+const shopNetCents = (o: DashShopOrder) =>
+  Math.max(0, (o.totalCents ?? 0) - o.refundedCents);
 
 function ShopOrdersSection({
   orders,
@@ -1529,20 +2251,20 @@ function ShopOrdersSection({
   styles: Styles;
   colors: SemanticColors;
 }) {
-  const [range, setRange] = useState<ShopRange>('all');
+  const [range, setRange] = useState<ShopRange>("all");
   const [showAbandoned, setShowAbandoned] = useState(false);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
 
   const base = useMemo(() => {
     const today = etDay(now);
     return orders.filter((o) => {
       if (hideTests && (o.test || o.playthrough)) return false;
-      if (range === 'all') return true;
+      if (range === "all") return true;
       const t = o.createdAt ? Date.parse(o.createdAt) : NaN;
       if (!Number.isFinite(t)) return false;
-      if (range === 'today') return etDay(t) === today;
-      return now - t < (range === '7d' ? 7 : 30) * DAY_MS;
+      if (range === "today") return etDay(t) === today;
+      return now - t < (range === "7d" ? 7 : 30) * DAY_MS;
     });
   }, [orders, hideTests, range, now]);
 
@@ -1550,71 +2272,177 @@ function ShopOrdersSection({
     const q = query.trim().toLowerCase();
     return base.filter((o) => {
       if (!showAbandoned && o.abandoned) return false;
-      if (q && !`${o.buyer ?? ''} ${o.email ?? ''} ${o.orderNumber} ${shopLinesSummary(o)}`.toLowerCase().includes(q)) return false;
+      if (
+        q &&
+        !`${o.buyer ?? ""} ${o.email ?? ""} ${o.orderNumber} ${shopLinesSummary(o)}`
+          .toLowerCase()
+          .includes(q)
+      )
+        return false;
       return true;
     });
   }, [base, showAbandoned, query]);
 
-  const paid = base.filter((o) => o.paid && o.status !== 'refunded');
-  const committed = base.filter((o) => o.status === 'committed');
+  const paid = base.filter((o) => o.paid && o.status !== "refunded");
+  const committed = base.filter((o) => o.status === "committed");
   const abandoned = base.filter((o) => o.abandoned).length;
   const units = paid.reduce((s, o) => s + o.units, 0);
   const unitsByItem = new Map<string, number>();
-  for (const o of [...paid, ...committed]) for (const l of o.lines) unitsByItem.set(l.name, (unitsByItem.get(l.name) ?? 0) + l.qty);
+  for (const o of [...paid, ...committed])
+    for (const l of o.lines)
+      unitsByItem.set(l.name, (unitsByItem.get(l.name) ?? 0) + l.qty);
   const itemSummary = [...unitsByItem]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([name, q]) => `${name} ${q}`)
-    .join(' · ');
+    .join(" · ");
 
   const columns: Column<DashShopOrder>[] = [
-    { label: 'Date', width: 120, cell: (o) => when(o.createdAt), sort: (o) => (o.createdAt ? Date.parse(o.createdAt) : null) },
-    { label: 'Order #', width: 90, cell: (o) => o.orderNumber, sort: (o) => o.orderNumber },
-    { label: 'Buyer', width: 200, cell: (o) => <Who name={o.buyer} email={o.email} styles={styles} />, sort: (o) => (o.buyer ?? o.email ?? '').toLowerCase() },
-    { label: 'Account', width: 80, cell: (o) => (o.guest ? 'Guest' : 'Signed in'), sort: (o) => (o.guest ? 1 : 0) },
-    { label: 'Items', width: 240, cell: (o) => shopLinesSummary(o) || '—' },
-    { label: 'Units', width: 55, align: 'right', cell: (o) => String(o.units), sort: (o) => o.units },
-    { label: 'Total', width: 85, align: 'right', cell: (o) => money(o.totalCents), sort: (o) => o.totalCents },
-    { label: 'Status', width: 170, cell: (o) => shopStatusLabel(o), sort: (o) => o.status },
-    { label: 'Charged', width: 95, cell: (o) => (o.chargeTiming === 'lock' ? 'At box lock' : o.chargeTiming === 'checkout' ? 'At checkout' : '—'), sort: (o) => o.chargeTiming },
-    { label: 'Paid', width: 120, cell: (o) => when(o.paidAt), sort: (o) => (o.paidAt ? Date.parse(o.paidAt) : null) },
-    { label: 'Fulfillment', width: 150, cell: (o) => o.fulfillment, sort: (o) => o.fulfillment },
-    { label: 'Promo', width: 140, cell: (o) => o.promo ?? '—', sort: (o) => o.promo },
-    { label: 'Test', width: 50, cell: (o) => (o.test ? 'Test' : o.playthrough ? 'Play' : '—'), sort: (o) => (o.test || o.playthrough ? 1 : 0) },
+    {
+      label: "Date",
+      width: 120,
+      cell: (o) => when(o.createdAt),
+      sort: (o) => (o.createdAt ? Date.parse(o.createdAt) : null),
+    },
+    {
+      label: "Order #",
+      width: 90,
+      cell: (o) => o.orderNumber,
+      sort: (o) => o.orderNumber,
+    },
+    {
+      label: "Buyer",
+      width: 200,
+      cell: (o) => <Who name={o.buyer} email={o.email} styles={styles} />,
+      sort: (o) => (o.buyer ?? o.email ?? "").toLowerCase(),
+    },
+    {
+      label: "Account",
+      width: 80,
+      cell: (o) => (o.guest ? "Guest" : "Signed in"),
+      sort: (o) => (o.guest ? 1 : 0),
+    },
+    { label: "Items", width: 240, cell: (o) => shopLinesSummary(o) || "—" },
+    {
+      label: "Units",
+      width: 55,
+      align: "right",
+      cell: (o) => String(o.units),
+      sort: (o) => o.units,
+    },
+    {
+      label: "Total",
+      width: 85,
+      align: "right",
+      cell: (o) => money(o.totalCents),
+      sort: (o) => o.totalCents,
+    },
+    {
+      label: "Status",
+      width: 170,
+      cell: (o) => shopStatusLabel(o),
+      sort: (o) => o.status,
+    },
+    {
+      label: "Charged",
+      width: 95,
+      cell: (o) =>
+        o.chargeTiming === "lock"
+          ? "At box lock"
+          : o.chargeTiming === "checkout"
+            ? "At checkout"
+            : "—",
+      sort: (o) => o.chargeTiming,
+    },
+    {
+      label: "Paid",
+      width: 120,
+      cell: (o) => when(o.paidAt),
+      sort: (o) => (o.paidAt ? Date.parse(o.paidAt) : null),
+    },
+    {
+      label: "Fulfillment",
+      width: 150,
+      cell: (o) => o.fulfillment,
+      sort: (o) => o.fulfillment,
+    },
+    {
+      label: "Promo",
+      width: 140,
+      cell: (o) => o.promo ?? "—",
+      sort: (o) => o.promo,
+    },
+    {
+      label: "Test",
+      width: 50,
+      cell: (o) => (o.test ? "Test" : o.playthrough ? "Play" : "—"),
+      sort: (o) => (o.test || o.playthrough ? 1 : 0),
+    },
   ];
   const lineColumns: Column<DashShopLine>[] = [
-    { label: 'Item', width: 240, cell: (l) => l.name },
-    { label: 'Qty', width: 50, align: 'right', cell: (l) => String(l.qty) },
-    { label: 'Unit price', width: 80, align: 'right', cell: (l) => money(l.unitCents) },
-    { label: 'Line total', width: 80, align: 'right', cell: (l) => money(l.unitCents * l.qty) },
+    { label: "Item", width: 240, cell: (l) => l.name },
+    { label: "Qty", width: 50, align: "right", cell: (l) => String(l.qty) },
+    {
+      label: "Unit price",
+      width: 80,
+      align: "right",
+      cell: (l) => money(l.unitCents),
+    },
+    {
+      label: "Line total",
+      width: 80,
+      align: "right",
+      cell: (l) => money(l.unitCents * l.qty),
+    },
   ];
 
   return (
     <View style={styles.sectionBody}>
       <View style={styles.stats}>
-        <Stat value={String(paid.length)} label={`Paid orders · ${money(paid.reduce((s, o) => s + shopNetCents(o), 0))} after refunds`} tone="success" styles={styles} colors={colors} />
-        <Stat value={String(units)} label="Units in paid orders" styles={styles} colors={colors} />
         <Stat
-          value={String(committed.length)}
-          label={`Committed, charged at box lock · ${money(committed.reduce((s, o) => s + (o.totalCents ?? 0), 0))}`}
-          tone={committed.length ? 'info' : undefined}
+          value={String(paid.length)}
+          label={`Paid orders · ${money(paid.reduce((s, o) => s + shopNetCents(o), 0))} after refunds`}
+          tone="success"
           styles={styles}
           colors={colors}
         />
-        <Stat value={String(abandoned)} label={`Unpaid or abandoned${showAbandoned ? '' : ' (hidden)'}`} styles={styles} colors={colors} />
+        <Stat
+          value={String(units)}
+          label="Units in paid orders"
+          styles={styles}
+          colors={colors}
+        />
+        <Stat
+          value={String(committed.length)}
+          label={`Committed, charged at box lock · ${money(committed.reduce((s, o) => s + (o.totalCents ?? 0), 0))}`}
+          tone={committed.length ? "info" : undefined}
+          styles={styles}
+          colors={colors}
+        />
+        <Stat
+          value={String(abandoned)}
+          label={`Unpaid or abandoned${showAbandoned ? "" : " (hidden)"}`}
+          styles={styles}
+          colors={colors}
+        />
       </View>
       <ChipGroup<ShopRange>
         value={range}
         onChange={setRange}
         styles={styles}
         options={[
-          ['all', 'All time'],
-          ['today', 'Today'],
-          ['7d', 'Last 7 days'],
-          ['30d', 'Last 30 days'],
+          ["all", "All time"],
+          ["today", "Today"],
+          ["7d", "Last 7 days"],
+          ["30d", "Last 30 days"],
         ]}
       />
       <ChipRow styles={styles}>
-        <Chip label={`Show unpaid and abandoned (${abandoned})`} active={showAbandoned} onPress={() => setShowAbandoned((v) => !v)} styles={styles} />
+        <Chip
+          label={`Show unpaid and abandoned (${abandoned})`}
+          active={showAbandoned}
+          onPress={() => setShowAbandoned((v) => !v)}
+          styles={styles}
+        />
       </ChipRow>
       <TextInput
         style={styles.input}
@@ -1630,10 +2458,11 @@ function ShopOrdersSection({
         rows={rows}
         rowKey={(o) => o.id}
         rowTone={(o) => {
-          if (o.status === 'refunded' || o.status === 'cancelled') return 'neutral';
-          if (o.paid) return 'success';
-          if (o.status === 'committed') return 'info';
-          return 'warning';
+          if (o.status === "refunded" || o.status === "cancelled")
+            return "neutral";
+          if (o.paid) return "success";
+          if (o.status === "committed") return "info";
+          return "warning";
         }}
         openKey={openId}
         onToggle={(k) => setOpenId((prev) => (prev === k ? null : k))}
@@ -1650,33 +2479,58 @@ function ShopOrdersSection({
             <Facts
               styles={styles}
               facts={[
-                ['Subtotal', money(o.subtotalCents)],
-                ['Discount', o.discountCents ? `−${money(o.discountCents)}` : '—'],
-                ['Credit applied', o.creditCents ? `−${money(o.creditCents)}` : '—'],
-                ['Shipping', money(o.shippingCents)],
-                ['Tax', money(o.taxCents)],
-                ['Total', money(o.totalCents)],
-                ['Refunded', o.refundedCents ? money(o.refundedCents) : '—'],
-                ['Promo', o.promo ?? '—'],
-                ['Attribution', o.attribution ?? '—'],
-                ['Ships to', o.location ?? '—'],
-                ['Tracking', o.trackingNumber ? `${o.carrier ?? ''} ${o.trackingNumber}`.trim() : '—'],
-                ['Shipped', when(o.shippedAt)],
-                ...(o.chargeFailure ? ([['Charge failed', o.chargeFailure]] as Array<[string, string]>) : []),
-                ...(o.cancelReason ? ([['Cancel reason', o.cancelReason]] as Array<[string, string]>) : []),
-                ['Household', o.householdId],
-                ['Order', o.orderId],
+                ["Subtotal", money(o.subtotalCents)],
+                [
+                  "Discount",
+                  o.discountCents ? `−${money(o.discountCents)}` : "—",
+                ],
+                [
+                  "Credit applied",
+                  o.creditCents ? `−${money(o.creditCents)}` : "—",
+                ],
+                ["Shipping", money(o.shippingCents)],
+                ["Tax", money(o.taxCents)],
+                ["Total", money(o.totalCents)],
+                ["Refunded", o.refundedCents ? money(o.refundedCents) : "—"],
+                ["Promo", o.promo ?? "—"],
+                ["Attribution", o.attribution ?? "—"],
+                ["Ships to", o.location ?? "—"],
+                [
+                  "Tracking",
+                  o.trackingNumber
+                    ? `${o.carrier ?? ""} ${o.trackingNumber}`.trim()
+                    : "—",
+                ],
+                ["Shipped", when(o.shippedAt)],
+                ...(o.chargeFailure
+                  ? ([["Charge failed", o.chargeFailure]] as Array<
+                      [string, string]
+                    >)
+                  : []),
+                ...(o.cancelReason
+                  ? ([["Cancel reason", o.cancelReason]] as Array<
+                      [string, string]
+                    >)
+                  : []),
+                ["Household", o.householdId],
+                ["Order", o.orderId],
               ]}
             />
           </View>
         )}
         emptyMessage={
-          hideTests ? 'No real shop orders match. Turn off Hide tests to see test orders.' : 'No shop orders match these filters.'
+          hideTests
+            ? "No real shop orders match. Turn off Hide tests to see test orders."
+            : "No shop orders match these filters."
         }
         styles={styles}
         colors={colors}
       />
-      {itemSummary ? <Text style={styles.caption}>{`Units in paid and committed orders: ${itemSummary}`}</Text> : null}
+      {itemSummary ? (
+        <Text
+          style={styles.caption}
+        >{`Units in paid and committed orders: ${itemSummary}`}</Text>
+      ) : null}
       <Text style={styles.caption}>
         {`${rows.length} of ${orders.length} storefront orders (bought from the shop without a box). Paid = charged at checkout, or at box lock for shoppers who also have a box. Committed = card saved, charged when boxes lock. Unpaid or abandoned = still pending, or cancelled before payment (holds are released after 2 hours). Revenue is totals after refunds, including shipping and tax. Paid orders ship with the boxes after lock. Dot: green paid, blue committed, amber unpaid, grey cancelled or refunded. US only doesn't apply here.`}
       </Text>
@@ -1692,7 +2546,7 @@ function CopyableItemName({ name, styles }: { name: string; styles: Styles }) {
     () => () => {
       if (timer.current) clearTimeout(timer.current);
     },
-    []
+    [],
   );
   const onCopy = () => {
     void copyText(name).then((ok) => {
@@ -1704,7 +2558,10 @@ function CopyableItemName({ name, styles }: { name: string; styles: Styles }) {
   };
   return (
     <Text
-      style={[styles.td, Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null]}
+      style={[
+        styles.td,
+        Platform.OS === "web" ? ({ cursor: "pointer" } as object) : null,
+      ]}
       numberOfLines={1}
       onPress={onCopy}
       accessibilityRole="button"
@@ -1725,71 +2582,189 @@ function InventorySection({
   styles: Styles;
   colors: SemanticColors;
 }) {
-  const [view, setView] = useState<'all' | 'tracked' | 'shop' | 'held' | 'low'>('all');
-  const [query, setQuery] = useState('');
+  const [view, setView] = useState<"all" | "tracked" | "shop" | "held" | "low">(
+    "all",
+  );
+  const [query, setQuery] = useState("");
   const [hideBooks, setHideBooks] = useState(false);
   const [onlyBooks, setOnlyBooks] = useState(false);
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return inventory.filter((i) => {
-      if (hideBooks && i.id.startsWith('book-')) return false;
-      if (onlyBooks && !i.id.startsWith('book-')) return false;
-      if (view === 'tracked' && i.stock == null) return false;
-      if (view === 'shop' && !(i.directCap ?? 0) && i.directSold + i.directReserved === 0) return false;
-      if (view === 'low' && (i.remainingAfterDrafts == null || i.remainingAfterDrafts > LOW_THRESHOLD)) return false;
-      if (view === 'held' && i.counterAllocated + i.draftDemand + i.directSold + i.directReserved === 0) return false;
-      if (q && !i.name.toLowerCase().includes(q) && !(i.setAsideFor ?? '').toLowerCase().includes(q)) return false;
+      if (hideBooks && i.id.startsWith("book-")) return false;
+      if (onlyBooks && !i.id.startsWith("book-")) return false;
+      if (view === "tracked" && i.stock == null) return false;
+      if (
+        view === "shop" &&
+        !(i.directCap ?? 0) &&
+        i.directSold + i.directReserved === 0
+      )
+        return false;
+      if (
+        view === "low" &&
+        (i.remainingAfterDrafts == null ||
+          i.remainingAfterDrafts > LOW_THRESHOLD)
+      )
+        return false;
+      if (
+        view === "held" &&
+        i.counterAllocated + i.draftDemand + i.directSold + i.directReserved ===
+          0
+      )
+        return false;
+      if (
+        q &&
+        !i.name.toLowerCase().includes(q) &&
+        !(i.setAsideFor ?? "").toLowerCase().includes(q)
+      )
+        return false;
       return true;
     });
   }, [inventory, view, query, hideBooks, onlyBooks]);
-  const dash = (n: number) => (n ? String(n) : '—');
-  const committed = (i: InventoryView) => i.heldByBoxes + i.heldByGifts + i.directSold;
+  const dash = (n: number) => (n ? String(n) : "—");
+  const committed = (i: InventoryView) =>
+    i.heldByBoxes + i.heldByGifts + i.directSold;
   // Wide enough for the longest non-book name; long book titles truncate.
   const itemMaxWidth = useMemo(() => {
-    const longest = Math.max(0, ...inventory.filter((i) => !i.id.startsWith('book-')).map((i) => i.name.length));
+    const longest = Math.max(
+      0,
+      ...inventory
+        .filter((i) => !i.id.startsWith("book-"))
+        .map((i) => i.name.length),
+    );
     return Math.max(240, Math.ceil(longest * 7) + 24);
   }, [inventory]);
 
   const columns: Column<InventoryView>[] = [
     {
-      label: 'Item',
+      label: "Item",
       width: 240,
       maxWidth: itemMaxWidth,
       title: true,
       cell: (i) => <CopyableItemName name={i.name} styles={styles} />,
       sort: (i) => i.name.toLowerCase(),
     },
-    { label: 'Available', width: 80, align: 'right', cell: (i) => (i.remaining == null ? '—' : String(i.remaining)), sort: (i) => i.remaining },
-    { label: 'Committed', width: 85, align: 'right', cell: (i) => dash(committed(i)), sort: (i) => committed(i) },
-    { label: 'On hand', width: 100, align: 'right', cell: (i) => (i.stock == null ? 'N/A' : String(i.stock)), sort: (i) => i.stock },
-    { label: 'In boxes', width: 70, align: 'right', cell: (i) => dash(i.heldByBoxes), sort: (i) => i.heldByBoxes },
-    { label: 'In gifts', width: 65, align: 'right', cell: (i) => dash(i.heldByGifts), sort: (i) => i.heldByGifts },
-    { label: 'Procured', width: 75, align: 'right', cell: (i) => (i.procured == null ? '—' : dash(i.procured)), sort: (i) => i.procured ?? null },
     {
-      label: 'To buy',
+      label: "Available",
+      width: 80,
+      align: "right",
+      cell: (i) => (i.remaining == null ? "—" : String(i.remaining)),
+      sort: (i) => i.remaining,
+    },
+    {
+      label: "Committed",
+      width: 85,
+      align: "right",
+      cell: (i) => dash(committed(i)),
+      sort: (i) => committed(i),
+    },
+    {
+      label: "On hand",
+      width: 100,
+      align: "right",
+      cell: (i) => (i.stock == null ? "N/A" : String(i.stock)),
+      sort: (i) => i.stock,
+    },
+    {
+      label: "In boxes",
       width: 70,
-      align: 'right',
-      cell: (i) => (i.procured == null ? '—' : String(committed(i) - i.procured)),
+      align: "right",
+      cell: (i) => dash(i.heldByBoxes),
+      sort: (i) => i.heldByBoxes,
+    },
+    {
+      label: "In gifts",
+      width: 65,
+      align: "right",
+      cell: (i) => dash(i.heldByGifts),
+      sort: (i) => i.heldByGifts,
+    },
+    {
+      label: "Procured",
+      width: 75,
+      align: "right",
+      cell: (i) => (i.procured == null ? "—" : dash(i.procured)),
+      sort: (i) => i.procured ?? null,
+    },
+    {
+      label: "To buy",
+      width: 70,
+      align: "right",
+      cell: (i) =>
+        i.procured == null ? "—" : String(committed(i) - i.procured),
       sort: (i) => (i.procured == null ? null : committed(i) - i.procured),
     },
-    { label: 'Sold direct', width: 85, align: 'right', cell: (i) => dash(i.directSold), sort: (i) => i.directSold },
-    { label: 'Reserved (unpaid)', width: 125, align: 'right', cell: (i) => dash(i.directReserved), sort: (i) => i.directReserved },
-    { label: 'Set aside', width: 80, align: 'right', cell: (i) => (i.setAside == null ? '—' : dash(i.setAside)), sort: (i) => i.setAside ?? null },
-    { label: 'Set aside for', width: 220, cell: (i) => i.setAsideFor || '—', sort: (i) => (i.setAsideFor ?? '').toLowerCase() },
-    { label: 'Shop cap', width: 75, align: 'right', cell: (i) => (i.directCap ? String(i.directCap) : '—'), sort: (i) => i.directCap ?? null },
-    { label: 'Shop can sell', width: 100, align: 'right', cell: (i) => shopAvailabilityLabel(i), sort: (i) => i.shopRemaining ?? null },
-    { label: 'Draft demand', width: 95, align: 'right', cell: (i) => dash(i.draftDemand), sort: (i) => i.draftDemand },
     {
-      label: 'After drafts',
+      label: "Sold direct",
+      width: 85,
+      align: "right",
+      cell: (i) => dash(i.directSold),
+      sort: (i) => i.directSold,
+    },
+    {
+      label: "Reserved (unpaid)",
+      width: 125,
+      align: "right",
+      cell: (i) => dash(i.directReserved),
+      sort: (i) => i.directReserved,
+    },
+    {
+      label: "Set aside",
+      width: 80,
+      align: "right",
+      cell: (i) => (i.setAside == null ? "—" : dash(i.setAside)),
+      sort: (i) => i.setAside ?? null,
+    },
+    {
+      label: "Set aside for",
+      width: 220,
+      cell: (i) => i.setAsideFor || "—",
+      sort: (i) => (i.setAsideFor ?? "").toLowerCase(),
+    },
+    {
+      label: "Shop cap",
+      width: 75,
+      align: "right",
+      cell: (i) => (i.directCap ? String(i.directCap) : "—"),
+      sort: (i) => i.directCap ?? null,
+    },
+    {
+      label: "Shop can sell",
+      width: 100,
+      align: "right",
+      cell: (i) => shopAvailabilityLabel(i),
+      sort: (i) => i.shopRemaining ?? null,
+    },
+    {
+      label: "Draft demand",
+      width: 95,
+      align: "right",
+      cell: (i) => dash(i.draftDemand),
+      sort: (i) => i.draftDemand,
+    },
+    {
+      label: "After drafts",
       width: 90,
-      align: 'right',
-      cell: (i) => (i.remainingAfterDrafts == null ? '—' : String(i.remainingAfterDrafts)),
+      align: "right",
+      cell: (i) =>
+        i.remainingAfterDrafts == null ? "—" : String(i.remainingAfterDrafts),
       sort: (i) => i.remainingAfterDrafts,
     },
-    { label: 'Favorited', width: 80, align: 'right', cell: (i) => dash(i.favoritesShown), sort: (i) => i.favoritesShown },
+    {
+      label: "Favorited",
+      width: 80,
+      align: "right",
+      cell: (i) => dash(i.favoritesShown),
+      sort: (i) => i.favoritesShown,
+    },
   ];
-  const [inventoryColumns, setInventoryColumns] = useColumnVisibility('gj.adminBoxes.columns.inventory', columns);
-  const shownColumns = inventoryColumns ? columns.filter((c) => inventoryColumns.has(c.label)) : null;
+  const [inventoryColumns, setInventoryColumns] = useColumnVisibility(
+    "gj.adminBoxes.columns.inventory",
+    columns,
+  );
+  const shownColumns = inventoryColumns
+    ? columns.filter((c) => inventoryColumns.has(c.label))
+    : null;
 
   return (
     <View style={styles.sectionBody}>
@@ -1798,30 +2773,34 @@ function InventorySection({
         onChange={setView}
         styles={styles}
         options={[
-          ['all', 'All items'],
-          ['tracked', 'Stock-tracked'],
-          ['shop', 'Sold in the shop'],
-          ['held', 'Held or wanted'],
-          ['low', `${LOW_THRESHOLD} or fewer after drafts`],
+          ["all", "All items"],
+          ["tracked", "Stock-tracked"],
+          ["shop", "Sold in the shop"],
+          ["held", "Held or wanted"],
+          ["low", `${LOW_THRESHOLD} or fewer after drafts`],
         ]}
       />
       <ChipRow styles={styles}>
         <Chip
           label="Hide books"
           active={hideBooks}
-          onPress={() => setHideBooks((v) => {
-            if (!v) setOnlyBooks(false);
-            return !v;
-          })}
+          onPress={() =>
+            setHideBooks((v) => {
+              if (!v) setOnlyBooks(false);
+              return !v;
+            })
+          }
           styles={styles}
         />
         <Chip
           label="Only books"
           active={onlyBooks}
-          onPress={() => setOnlyBooks((v) => {
-            if (!v) setHideBooks(false);
-            return !v;
-          })}
+          onPress={() =>
+            setOnlyBooks((v) => {
+              if (!v) setHideBooks(false);
+              return !v;
+            })
+          }
           styles={styles}
         />
       </ChipRow>
@@ -1848,7 +2827,13 @@ function InventorySection({
         rows={shownColumns ? rows : []}
         rowKey={(i) => i.id}
         rowTone={(i) =>
-          i.remaining == null ? undefined : i.remaining <= 0 ? 'danger' : i.remaining <= LOW_THRESHOLD ? 'warning' : undefined
+          i.remaining == null
+            ? undefined
+            : i.remaining <= 0
+              ? "danger"
+              : i.remaining <= LOW_THRESHOLD
+                ? "warning"
+                : undefined
         }
         emptyMessage="No items match."
         styles={styles}
@@ -1861,13 +2846,21 @@ function InventorySection({
   );
 }
 
-type Fit = 'low' | 'high' | 'unknown';
+type Fit = "low" | "high" | "unknown";
 
 /** Both sliders start at 50, so 50/50 is treated as untouched; Hanukkah alone is too skewed to score. */
-function fitOf(p: DashAdPerson, jewishWeight: number, cutoff: number): { fit: Fit; score: number | null } {
-  if (p.jewish == null || (p.jewish === 50 && p.hanukkah === 50)) return { fit: 'unknown', score: null };
-  const score = p.hanukkah == null ? p.jewish : jewishWeight * p.jewish + (1 - jewishWeight) * p.hanukkah;
-  return { fit: score < cutoff ? 'low' : 'high', score };
+function fitOf(
+  p: DashAdPerson,
+  jewishWeight: number,
+  cutoff: number,
+): { fit: Fit; score: number | null } {
+  if (p.jewish == null || (p.jewish === 50 && p.hanukkah === 50))
+    return { fit: "unknown", score: null };
+  const score =
+    p.hanukkah == null
+      ? p.jewish
+      : jewishWeight * p.jewish + (1 - jewishWeight) * p.hanukkah;
+  return { fit: score < cutoff ? "low" : "high", score };
 }
 
 type AdRow = {
@@ -1886,11 +2879,20 @@ type AdRow = {
   meta: MetaAdStats | null;
 };
 
-const ALL_ADS = 'All sources';
+const ALL_ADS = "All sources";
 
 function sumMeta(stats: MetaAdStats[]): MetaAdStats {
-  const total: MetaAdStats = { spend: 0, linkClicks: 0, landingPageViews: 0, addToCart: 0, registrations: 0, purchases: 0 };
-  for (const s of stats) for (const k of Object.keys(total) as (keyof MetaAdStats)[]) total[k] += s[k];
+  const total: MetaAdStats = {
+    spend: 0,
+    linkClicks: 0,
+    landingPageViews: 0,
+    addToCart: 0,
+    registrations: 0,
+    purchases: 0,
+  };
+  for (const s of stats)
+    for (const k of Object.keys(total) as (keyof MetaAdStats)[])
+      total[k] += s[k];
   return total;
 }
 
@@ -1905,16 +2907,20 @@ function adRows(
   const groups = new Map<string, DashAdPerson[]>([[ALL_ADS, people]]);
   for (const p of people) groups.set(p.ad, [...(groups.get(p.ad) ?? []), p]);
   // Ads Meta spent on that brought no one in still get a row.
-  for (const [ad, s] of Object.entries(metaByAd ?? {})) if (s.spend > 0 && !groups.has(ad)) groups.set(ad, []);
+  for (const [ad, s] of Object.entries(metaByAd ?? {}))
+    if (s.spend > 0 && !groups.has(ad)) groups.set(ad, []);
   const metaTotal = metaByAd ? sumMeta(Object.values(metaByAd)) : null;
-  const credit = (f: Fit) => (f === 'low' ? 1 : f === 'high' ? highCredit : unknownCredit);
+  const credit = (f: Fit) =>
+    f === "low" ? 1 : f === "high" ? highCredit : unknownCredit;
   return [...groups].map(([ad, list]) => {
     const scored = list.map((p) => ({ p, ...fitOf(p, jewishWeight, cutoff) }));
     const lowShare = (keep: (p: DashAdPerson) => boolean): [number, number] => {
-      const known = scored.filter((s) => keep(s.p) && s.fit !== 'unknown');
-      return [known.filter((s) => s.fit === 'low').length, known.length];
+      const known = scored.filter((s) => keep(s.p) && s.fit !== "unknown");
+      return [known.filter((s) => s.fit === "low").length, known.length];
     };
-    const scores = scored.map((s) => s.score).filter((s): s is number => s != null);
+    const scores = scored
+      .map((s) => s.score)
+      .filter((s): s is number => s != null);
     return {
       ad,
       people: list.length,
@@ -1922,20 +2928,27 @@ function adRows(
       boxes: list.filter((p) => p.box).length,
       accounts: list.filter((p) => p.account).length,
       purchases: list.filter((p) => p.purchase).length,
-      avgScore: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
+      avgScore: scores.length
+        ? scores.reduce((a, b) => a + b, 0) / scores.length
+        : null,
       lowAnswered: lowShare((p) => p.answered),
       lowBoxes: lowShare((p) => p.box),
       lowAccounts: lowShare((p) => p.account),
-      creditedBoxes: scored.filter((s) => s.p.box).reduce((sum, s) => sum + credit(s.fit), 0),
-      creditedAccounts: scored.filter((s) => s.p.account).reduce((sum, s) => sum + credit(s.fit), 0),
-      meta: ad === ALL_ADS ? metaTotal : metaByAd?.[ad] ?? null,
+      creditedBoxes: scored
+        .filter((s) => s.p.box)
+        .reduce((sum, s) => sum + credit(s.fit), 0),
+      creditedAccounts: scored
+        .filter((s) => s.p.account)
+        .reduce((sum, s) => sum + credit(s.fit), 0),
+      meta: ad === ALL_ADS ? metaTotal : (metaByAd?.[ad] ?? null),
     };
   });
 }
 
-const dollars = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+const dollars = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
-const share = ([low, known]: [number, number]) => (known ? `${low} of ${known}` : '—');
+const share = ([low, known]: [number, number]) =>
+  known ? `${low} of ${known}` : "—";
 const tenths = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 function AdsSection({
@@ -1951,10 +2964,10 @@ function AdsSection({
   styles: Styles;
   colors: SemanticColors;
 }) {
-  const [jewishWeight, setJewishWeight] = useState('0.75');
-  const [cutoff, setCutoff] = useState('50');
-  const [highCredit, setHighCredit] = useState('0.5');
-  const [unknownCredit, setUnknownCredit] = useState('0.75');
+  const [jewishWeight, setJewishWeight] = useState("0.75");
+  const [cutoff, setCutoff] = useState("50");
+  const [highCredit, setHighCredit] = useState("0.5");
+  const [unknownCredit, setUnknownCredit] = useState("0.75");
 
   const rows = useMemo(
     () =>
@@ -1966,32 +2979,150 @@ function AdsSection({
         Number(unknownCredit),
         metaByAd,
       ),
-    [people, metaByAd, hideTests, jewishWeight, cutoff, highCredit, unknownCredit],
+    [
+      people,
+      metaByAd,
+      hideTests,
+      jewishWeight,
+      cutoff,
+      highCredit,
+      unknownCredit,
+    ],
   );
 
   const columns: Column<AdRow>[] = [
-    { label: 'Ad', width: 170, cell: (r) => <Text style={[styles.td, r.ad === ALL_ADS && styles.tdStrong]} numberOfLines={2}>{r.ad}</Text>, sort: (r) => (r.ad === ALL_ADS ? '' : r.ad) },
-    { label: 'People', width: 60, align: 'right', cell: (r) => String(r.people), sort: (r) => r.people },
-    { label: 'Answered', width: 75, align: 'right', cell: (r) => String(r.answered), sort: (r) => r.answered },
-    { label: 'Boxes', width: 60, align: 'right', cell: (r) => String(r.boxes), sort: (r) => r.boxes },
-    { label: 'Accounts', width: 75, align: 'right', cell: (r) => String(r.accounts), sort: (r) => r.accounts },
-    { label: 'Purchases', width: 80, align: 'right', cell: (r) => String(r.purchases), sort: (r) => r.purchases },
-    { label: 'Avg score', width: 75, align: 'right', cell: (r) => (r.avgScore == null ? '—' : String(Math.round(r.avgScore))), sort: (r) => r.avgScore },
-    { label: '70% · answered', width: 110, align: 'right', cell: (r) => share(r.lowAnswered), sort: (r) => (r.lowAnswered[1] ? r.lowAnswered[0] / r.lowAnswered[1] : null) },
-    { label: '70% · box', width: 85, align: 'right', cell: (r) => share(r.lowBoxes), sort: (r) => (r.lowBoxes[1] ? r.lowBoxes[0] / r.lowBoxes[1] : null) },
-    { label: '70% · account', width: 105, align: 'right', cell: (r) => share(r.lowAccounts), sort: (r) => (r.lowAccounts[1] ? r.lowAccounts[0] / r.lowAccounts[1] : null) },
-    { label: 'Credited boxes', width: 105, align: 'right', cell: (r) => tenths(r.creditedBoxes), sort: (r) => r.creditedBoxes },
-    { label: 'Credited accounts', width: 125, align: 'right', cell: (r) => tenths(r.creditedAccounts), sort: (r) => r.creditedAccounts },
-    { label: 'Meta spend', width: 85, align: 'right', cell: (r) => (r.meta ? dollars(r.meta.spend) : '—'), sort: (r) => r.meta?.spend ?? null },
-    { label: 'Meta page views', width: 115, align: 'right', cell: (r) => (r.meta ? String(r.meta.landingPageViews) : '—'), sort: (r) => r.meta?.landingPageViews ?? null },
-    { label: 'Meta add to cart', width: 115, align: 'right', cell: (r) => (r.meta ? String(r.meta.addToCart) : '—'), sort: (r) => r.meta?.addToCart ?? null },
-    { label: 'Meta purchases', width: 105, align: 'right', cell: (r) => (r.meta ? String(r.meta.purchases) : '—'), sort: (r) => r.meta?.purchases ?? null },
     {
-      label: '$ / credited account',
+      label: "Ad",
+      width: 170,
+      cell: (r) => (
+        <Text
+          style={[styles.td, r.ad === ALL_ADS && styles.tdStrong]}
+          numberOfLines={2}
+        >
+          {r.ad}
+        </Text>
+      ),
+      sort: (r) => (r.ad === ALL_ADS ? "" : r.ad),
+    },
+    {
+      label: "People",
+      width: 60,
+      align: "right",
+      cell: (r) => String(r.people),
+      sort: (r) => r.people,
+    },
+    {
+      label: "Answered",
+      width: 75,
+      align: "right",
+      cell: (r) => String(r.answered),
+      sort: (r) => r.answered,
+    },
+    {
+      label: "Boxes",
+      width: 60,
+      align: "right",
+      cell: (r) => String(r.boxes),
+      sort: (r) => r.boxes,
+    },
+    {
+      label: "Accounts",
+      width: 75,
+      align: "right",
+      cell: (r) => String(r.accounts),
+      sort: (r) => r.accounts,
+    },
+    {
+      label: "Purchases",
+      width: 80,
+      align: "right",
+      cell: (r) => String(r.purchases),
+      sort: (r) => r.purchases,
+    },
+    {
+      label: "Avg score",
+      width: 75,
+      align: "right",
+      cell: (r) => (r.avgScore == null ? "—" : String(Math.round(r.avgScore))),
+      sort: (r) => r.avgScore,
+    },
+    {
+      label: "70% · answered",
+      width: 110,
+      align: "right",
+      cell: (r) => share(r.lowAnswered),
+      sort: (r) =>
+        r.lowAnswered[1] ? r.lowAnswered[0] / r.lowAnswered[1] : null,
+    },
+    {
+      label: "70% · box",
+      width: 85,
+      align: "right",
+      cell: (r) => share(r.lowBoxes),
+      sort: (r) => (r.lowBoxes[1] ? r.lowBoxes[0] / r.lowBoxes[1] : null),
+    },
+    {
+      label: "70% · account",
+      width: 105,
+      align: "right",
+      cell: (r) => share(r.lowAccounts),
+      sort: (r) =>
+        r.lowAccounts[1] ? r.lowAccounts[0] / r.lowAccounts[1] : null,
+    },
+    {
+      label: "Credited boxes",
+      width: 105,
+      align: "right",
+      cell: (r) => tenths(r.creditedBoxes),
+      sort: (r) => r.creditedBoxes,
+    },
+    {
+      label: "Credited accounts",
+      width: 125,
+      align: "right",
+      cell: (r) => tenths(r.creditedAccounts),
+      sort: (r) => r.creditedAccounts,
+    },
+    {
+      label: "Meta spend",
+      width: 85,
+      align: "right",
+      cell: (r) => (r.meta ? dollars(r.meta.spend) : "—"),
+      sort: (r) => r.meta?.spend ?? null,
+    },
+    {
+      label: "Meta page views",
+      width: 115,
+      align: "right",
+      cell: (r) => (r.meta ? String(r.meta.landingPageViews) : "—"),
+      sort: (r) => r.meta?.landingPageViews ?? null,
+    },
+    {
+      label: "Meta add to cart",
+      width: 115,
+      align: "right",
+      cell: (r) => (r.meta ? String(r.meta.addToCart) : "—"),
+      sort: (r) => r.meta?.addToCart ?? null,
+    },
+    {
+      label: "Meta purchases",
+      width: 105,
+      align: "right",
+      cell: (r) => (r.meta ? String(r.meta.purchases) : "—"),
+      sort: (r) => r.meta?.purchases ?? null,
+    },
+    {
+      label: "$ / credited account",
       width: 135,
-      align: 'right',
-      cell: (r) => (r.meta?.spend && r.creditedAccounts ? dollars(r.meta.spend / r.creditedAccounts) : '—'),
-      sort: (r) => (r.meta?.spend && r.creditedAccounts ? r.meta.spend / r.creditedAccounts : null),
+      align: "right",
+      cell: (r) =>
+        r.meta?.spend && r.creditedAccounts
+          ? dollars(r.meta.spend / r.creditedAccounts)
+          : "—",
+      sort: (r) =>
+        r.meta?.spend && r.creditedAccounts
+          ? r.meta.spend / r.creditedAccounts
+          : null,
     },
   ];
 
@@ -2002,10 +3133,10 @@ function AdsSection({
         onChange={setJewishWeight}
         styles={styles}
         options={[
-          ['0.5', 'Jewish ½ · Hanukkah ½'],
-          ['0.667', 'Jewish ⅔ · Hanukkah ⅓'],
-          ['0.75', 'Jewish ¾ · Hanukkah ¼'],
-          ['1', 'Jewish only'],
+          ["0.5", "Jewish ½ · Hanukkah ½"],
+          ["0.667", "Jewish ⅔ · Hanukkah ⅓"],
+          ["0.75", "Jewish ¾ · Hanukkah ¼"],
+          ["1", "Jewish only"],
         ]}
       />
       <ChipGroup
@@ -2013,9 +3144,9 @@ function AdsSection({
         onChange={setCutoff}
         styles={styles}
         options={[
-          ['40', 'Cutoff 40'],
-          ['50', 'Cutoff 50'],
-          ['60', 'Cutoff 60'],
+          ["40", "Cutoff 40"],
+          ["50", "Cutoff 50"],
+          ["60", "Cutoff 60"],
         ]}
       />
       <ChipRow styles={styles}>
@@ -2024,11 +3155,11 @@ function AdsSection({
           onChange={setHighCredit}
           styles={styles}
           options={[
-            ['0', '30% credit 0'],
-            ['0.25', '30% credit ¼'],
-            ['0.5', '30% credit ½'],
-            ['0.75', '30% credit ¾'],
-            ['1', '30% credit 1'],
+            ["0", "30% credit 0"],
+            ["0.25", "30% credit ¼"],
+            ["0.5", "30% credit ½"],
+            ["0.75", "30% credit ¾"],
+            ["1", "30% credit 1"],
           ]}
         />
         <ChipGroup
@@ -2036,9 +3167,9 @@ function AdsSection({
           onChange={setUnknownCredit}
           styles={styles}
           options={[
-            ['0.5', 'Unknown credit ½'],
-            ['0.75', 'Unknown credit ¾'],
-            ['1', 'Unknown credit 1'],
+            ["0.5", "Unknown credit ½"],
+            ["0.75", "Unknown credit ¾"],
+            ["1", "Unknown credit 1"],
           ]}
         />
       </ChipRow>
@@ -2046,65 +3177,95 @@ function AdsSection({
         columns={columns}
         rows={rows}
         rowKey={(r) => r.ad}
-        rowTone={(r) => (r.ad === ALL_ADS ? 'neutral' : undefined)}
+        rowTone={(r) => (r.ad === ALL_ADS ? "neutral" : undefined)}
         emptyMessage="No one has answered the questions or built a box yet."
         styles={styles}
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`One row per ad (the ad name Meta passes as utm_content), plus a total. Visits without an ad name show their source instead: "From …" (a utm_source such as a newsletter), "Referral: …" (the referring site), "Direct / no tags" (landed with no tags), or "Not recorded" (no entry was saved for that visit). `}{`People = everyone who answered the onboarding questions or built a box; signed-up people count once, under the ad that first brought them. Purchases = committed box orders (not pending). Score = Jewish × weight + Hanukkah × the rest; below the cutoff counts as the 70%. Both sliders left at 50 (where they start), or no Jewish answer (accounts from before that question), counts as unknown fit. "70% · box" = low scorers out of people with a known score who built a box. Credited = each box or account counts 1 for the 70%, the 30% credit for the rest, and the unknown credit when we can't tell. Meta columns are Meta's own numbers for Grapejuice campaigns since Sept 1 (refreshed every 10 minutes): they include visitors whose ad tags we lost and aren't filtered by US only or Hide tests. "$ / credited account" = Meta spend ÷ credited accounts. Test accounts follow Hide tests; anonymous test visits can't be told apart.`}
+        {`One row per ad (the ad name Meta passes as utm_content), plus a total. Visits without an ad name show their source instead: "From …" (a utm_source such as a newsletter), "Referral: …" (the referring site), "Direct / no tags" (landed with no tags), or "Not recorded" (no entry was saved for that visit). `}
+        {`People = everyone who answered the onboarding questions or built a box; signed-up people count once, under the ad that first brought them. Purchases = committed box orders (not pending). Score = Jewish × weight + Hanukkah × the rest; below the cutoff counts as the 70%. Both sliders left at 50 (where they start), or no Jewish answer (accounts from before that question), counts as unknown fit. "70% · box" = low scorers out of people with a known score who built a box. Credited = each box or account counts 1 for the 70%, the 30% credit for the rest, and the unknown credit when we can't tell. Meta columns are Meta's own numbers for Grapejuice campaigns since Sept 1 (refreshed every 10 minutes): they include visitors whose ad tags we lost and aren't filtered by US only or Hide tests. "$ / credited account" = Meta spend ÷ credited accounts. Test accounts follow Hide tests; anonymous test visits can't be told apart.`}
       </Text>
     </View>
   );
 }
 
 /** The box builder's email gate went live (10:30am ET). */
-const GATE_LIVE_MS = Date.parse('2026-10-08T14:30:00Z');
+const GATE_LIVE_MS = Date.parse("2026-10-08T14:30:00Z");
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-type FunnelKey = 'opened' | 'family' | 'sliders' | 'gateEmail' | 'sawBox' | 'account' | 'card' | 'purchase';
-const FUNNEL_STEPS: ReadonlyArray<{ key: FunnelKey; label: string; short: string }> = [
-  { key: 'opened', label: 'Opened the box builder', short: 'Opened' },
-  { key: 'family', label: 'Finished “Your family”', short: 'Family' },
-  { key: 'sliders', label: 'Finished the sliders (box built)', short: 'Box built' },
-  { key: 'gateEmail', label: 'Entered email at the gate', short: 'Gate email' },
-  { key: 'sawBox', label: 'Box revealed', short: 'Revealed' },
-  { key: 'account', label: 'Has an account', short: 'Accounts' },
-  { key: 'card', label: 'Added a card', short: 'Cards' },
-  { key: 'purchase', label: 'Ordered', short: 'Orders' },
+type FunnelKey =
+  | "opened"
+  | "family"
+  | "sliders"
+  | "gateEmail"
+  | "sawBox"
+  | "account"
+  | "card"
+  | "purchase";
+const FUNNEL_STEPS: ReadonlyArray<{
+  key: FunnelKey;
+  label: string;
+  short: string;
+}> = [
+  { key: "opened", label: "Opened the box builder", short: "Opened" },
+  { key: "family", label: "Finished “Your family”", short: "Family" },
+  {
+    key: "sliders",
+    label: "Finished the sliders (box built)",
+    short: "Box built",
+  },
+  { key: "gateEmail", label: "Entered email at the gate", short: "Gate email" },
+  { key: "sawBox", label: "Box revealed", short: "Revealed" },
+  { key: "account", label: "Has an account", short: "Accounts" },
+  { key: "card", label: "Added a card", short: "Cards" },
+  { key: "purchase", label: "Ordered", short: "Orders" },
 ];
-const reachedStep = (p: DashFunnelPerson, k: FunnelKey) => k === 'opened' || p[k];
-const countStep = (people: DashFunnelPerson[], k: FunnelKey) => people.filter((p) => reachedStep(p, k)).length;
-const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : '—');
-const firstSeenMs = (p: DashFunnelPerson) => (p.firstSeen ? Date.parse(p.firstSeen) : NaN);
+const reachedStep = (p: DashFunnelPerson, k: FunnelKey) =>
+  k === "opened" || p[k];
+const countStep = (people: DashFunnelPerson[], k: FunnelKey) =>
+  people.filter((p) => reachedStep(p, k)).length;
+const pct = (n: number, of: number) =>
+  of ? `${Math.round((n / of) * 100)}%` : "—";
+const firstSeenMs = (p: DashFunnelPerson) =>
+  p.firstSeen ? Date.parse(p.firstSeen) : NaN;
 
-type FunnelWindow = 'day' | 'week' | 'gate' | 'all';
+type FunnelWindow = "day" | "week" | "gate" | "all";
 const FUNNEL_WINDOWS: Array<[FunnelWindow, string]> = [
-  ['day', 'Last 24 hours'],
-  ['week', 'Last 7 days'],
-  ['gate', 'Since the email gate'],
-  ['all', 'All saved'],
+  ["day", "Last 24 hours"],
+  ["week", "Last 7 days"],
+  ["gate", "Since the email gate"],
+  ["all", "All saved"],
 ];
 
 function windowStart(w: FunnelWindow, now: number): number {
-  if (w === 'day') return now - DAY_MS;
-  if (w === 'week') return now - 7 * DAY_MS;
-  if (w === 'gate') return GATE_LIVE_MS;
+  if (w === "day") return now - DAY_MS;
+  if (w === "week") return now - 7 * DAY_MS;
+  if (w === "gate") return GATE_LIVE_MS;
   return -Infinity;
 }
 
-const etDay = (ms: number) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+const etDay = (ms: number) =>
+  new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
-const COMPARE_STEPS: ReadonlyArray<{ key: FunnelKey | 'anyEmail'; label: string }> = [
-  { key: 'sliders', label: 'Finished the sliders (box built)' },
-  { key: 'sawBox', label: 'Box revealed' },
-  { key: 'anyEmail', label: 'Gave an email (gate, account or Retention)' },
-  { key: 'account', label: 'Has an account' },
-  { key: 'card', label: 'Added a card' },
-  { key: 'purchase', label: 'Ordered' },
+const COMPARE_STEPS: ReadonlyArray<{
+  key: FunnelKey | "anyEmail";
+  label: string;
+}> = [
+  { key: "sliders", label: "Finished the sliders (box built)" },
+  { key: "sawBox", label: "Box revealed" },
+  { key: "anyEmail", label: "Gave an email (gate, account or Retention)" },
+  { key: "account", label: "Has an account" },
+  { key: "card", label: "Added a card" },
+  { key: "purchase", label: "Ordered" },
 ];
 
-type CompareRow = { key: FunnelKey | 'anyEmail'; label: string; before: number; after: number };
+type CompareRow = {
+  key: FunnelKey | "anyEmail";
+  label: string;
+  before: number;
+  after: number;
+};
 type DayRow = { day: string; people: DashFunnelPerson[] };
 
 /** Horizontal funnel bars out of the first step, with the biggest step-to-step loss called out. */
@@ -2135,7 +3296,9 @@ function FunnelBars({
     <>
       {biggest > 0 ? (
         <Text style={styles.hint}>
-          <Text style={[styles.tdStrong, { color: colors.error }]}>Biggest drop-off: </Text>
+          <Text style={[styles.tdStrong, { color: colors.error }]}>
+            Biggest drop-off:{" "}
+          </Text>
           {`${drop} of ${steps[biggest - 1].count} (${pct(drop, steps[biggest - 1].count)}) left between “${steps[biggest - 1].label}” and “${steps[biggest].label}”.`}
         </Text>
       ) : null}
@@ -2146,21 +3309,51 @@ function FunnelBars({
           const isBiggest = i === biggest;
           return (
             <View key={s.key} style={styles.funnelRow}>
-              <Text style={[styles.td, styles.funnelLabel, isBiggest && styles.tdStrong]} numberOfLines={2}>
+              <Text
+                style={[
+                  styles.td,
+                  styles.funnelLabel,
+                  isBiggest && styles.tdStrong,
+                ]}
+                numberOfLines={2}
+              >
                 {s.label}
               </Text>
               <View style={styles.funnelTrack}>
                 <View
                   style={[
                     styles.funnelFill,
-                    { width: `${(s.count / top) * 100}%`, backgroundColor: isBiggest ? colors.error : mobile ? m.gold : colors.brand },
+                    {
+                      width: `${(s.count / top) * 100}%`,
+                      backgroundColor: isBiggest
+                        ? colors.error
+                        : mobile
+                          ? m.gold
+                          : colors.brand,
+                    },
                   ]}
                 />
               </View>
-              <Text style={[styles.td, styles.tdStrong, styles.funnelNum]}>{String(s.count)}</Text>
-              <Text style={[styles.tdMuted, styles.funnelNum]}>{pct(s.count, top)}</Text>
-              <Text style={[styles.tdMuted, styles.funnelDrop, isBiggest && { color: colors.error }]}>
-                {prev == null ? '' : lost > 0 ? `−${lost} (${pct(lost, prev)})` : lost < 0 ? `+${-lost}` : '—'}
+              <Text style={[styles.td, styles.tdStrong, styles.funnelNum]}>
+                {String(s.count)}
+              </Text>
+              <Text style={[styles.tdMuted, styles.funnelNum]}>
+                {pct(s.count, top)}
+              </Text>
+              <Text
+                style={[
+                  styles.tdMuted,
+                  styles.funnelDrop,
+                  isBiggest && { color: colors.error },
+                ]}
+              >
+                {prev == null
+                  ? ""
+                  : lost > 0
+                    ? `−${lost} (${pct(lost, prev)})`
+                    : lost < 0
+                      ? `+${-lost}`
+                      : "—"}
               </Text>
             </View>
           );
@@ -2170,39 +3363,78 @@ function FunnelBars({
   );
 }
 
-type GiftStepKey = 'visited' | GiftFunnelKey;
-const GIFT_STEPS: ReadonlyArray<{ key: GiftStepKey; label: string; short: string; curatedOnly?: boolean }> = [
-  { key: 'visited', label: 'Visited /gift or the gift flow', short: 'Visited' },
-  { key: 'start', label: 'Started the gift flow', short: 'Started' },
-  { key: 'path', label: 'Chose credit or a curated box', short: 'Chose' },
-  { key: 'family', label: 'Finished their family step', short: 'Family' },
-  { key: 'email', label: 'Entered their email', short: 'Email', curatedOnly: true },
-  { key: 'box', label: 'Opened the box editor', short: 'Box editor', curatedOnly: true },
-  { key: 'note', label: 'Reached the note', short: 'Note' },
-  { key: 'send', label: 'Reached “Where should we send it?”', short: 'Recipient' },
-  { key: 'checkout', label: 'Opened payment', short: 'Payment' },
-  { key: 'paid', label: 'Paid', short: 'Paid' },
-  { key: 'claimed', label: 'Recipient claimed it', short: 'Claimed' },
+type GiftStepKey = "visited" | GiftFunnelKey;
+const GIFT_STEPS: ReadonlyArray<{
+  key: GiftStepKey;
+  label: string;
+  short: string;
+  curatedOnly?: boolean;
+}> = [
+  { key: "visited", label: "Visited /gift or the gift flow", short: "Visited" },
+  { key: "start", label: "Started the gift flow", short: "Started" },
+  { key: "path", label: "Chose credit or a curated box", short: "Chose" },
+  { key: "family", label: "Finished their family step", short: "Family" },
+  {
+    key: "email",
+    label: "Entered their email",
+    short: "Email",
+    curatedOnly: true,
+  },
+  {
+    key: "box",
+    label: "Opened the box editor",
+    short: "Box editor",
+    curatedOnly: true,
+  },
+  { key: "note", label: "Reached the note", short: "Note" },
+  {
+    key: "send",
+    label: "Reached “Where should we send it?”",
+    short: "Recipient",
+  },
+  { key: "checkout", label: "Opened payment", short: "Payment" },
+  { key: "paid", label: "Paid", short: "Paid" },
+  { key: "claimed", label: "Recipient claimed it", short: "Claimed" },
 ];
-const giftReached = (p: DashGiftFunnelPerson, k: GiftStepKey) => k === 'visited' || p.reached.includes(k);
-const giftCount = (people: DashGiftFunnelPerson[], k: GiftStepKey) => people.filter((p) => giftReached(p, k)).length;
-const giftFirstMs = (p: DashGiftFunnelPerson) => (p.firstSeen ? Date.parse(p.firstSeen) : NaN);
+const giftReached = (p: DashGiftFunnelPerson, k: GiftStepKey) =>
+  k === "visited" || p.reached.includes(k);
+const giftCount = (people: DashGiftFunnelPerson[], k: GiftStepKey) =>
+  people.filter((p) => giftReached(p, k)).length;
+const giftFirstMs = (p: DashGiftFunnelPerson) =>
+  p.firstSeen ? Date.parse(p.firstSeen) : NaN;
 
 function giftFurthest(p: DashGiftFunnelPerson): string {
-  const last = [...GIFT_STEPS].reverse().find((s) => s.key !== 'visited' && p.reached.includes(s.key as GiftFunnelKey));
-  return last ? last.short : 'Saw /gift only';
+  const last = [...GIFT_STEPS]
+    .reverse()
+    .find(
+      (s) => s.key !== "visited" && p.reached.includes(s.key as GiftFunnelKey),
+    );
+  return last ? last.short : "Saw /gift only";
 }
 
-type GiftPathFilter = 'any' | 'credit' | 'curated';
-type GiftWindow = 'day' | 'week' | 'all';
+type GiftPathFilter = "any" | "credit" | "curated";
+type GiftWindow = "day" | "week" | "all";
 const GIFT_WINDOWS: Array<[GiftWindow, string]> = [
-  ['day', 'Last 24 hours'],
-  ['week', 'Last 7 days'],
-  ['all', 'All saved'],
+  ["day", "Last 24 hours"],
+  ["week", "Last 7 days"],
+  ["all", "All saved"],
 ];
-type GiftCompareRow = { key: GiftStepKey; label: string; credit: number; curated: number };
+type GiftCompareRow = {
+  key: GiftStepKey;
+  label: string;
+  credit: number;
+  curated: number;
+};
 type GiftDayRow = { day: string; people: DashGiftFunnelPerson[] };
-const GIFT_DAY_STEPS: GiftStepKey[] = ['visited', 'start', 'path', 'family', 'send', 'checkout', 'paid'];
+const GIFT_DAY_STEPS: GiftStepKey[] = [
+  "visited",
+  "start",
+  "path",
+  "family",
+  "send",
+  "checkout",
+  "paid",
+];
 
 function GiftFunnelSection({
   people,
@@ -2217,35 +3449,61 @@ function GiftFunnelSection({
   styles: Styles;
   colors: SemanticColors;
 }) {
-  const [win, setWin] = useState<GiftWindow>('week');
-  const [path, setPath] = useState<GiftPathFilter>('any');
-  const pool = useMemo(() => people.filter((p) => !(hideTests && p.test)), [people, hideTests]);
+  const [win, setWin] = useState<GiftWindow>("week");
+  const [path, setPath] = useState<GiftPathFilter>("any");
+  const pool = useMemo(
+    () => people.filter((p) => !(hideTests && p.test)),
+    [people, hideTests],
+  );
   const inWindow = useMemo(() => {
-    const start = win === 'day' ? now - DAY_MS : win === 'week' ? now - 7 * DAY_MS : -Infinity;
+    const start =
+      win === "day"
+        ? now - DAY_MS
+        : win === "week"
+          ? now - 7 * DAY_MS
+          : -Infinity;
     return pool.filter((p) => giftFirstMs(p) >= start);
   }, [pool, win, now]);
-  const shown = path === 'any' ? inWindow : inWindow.filter((p) => p.path === path);
-  const steps = GIFT_STEPS.filter((s) => path === 'curated' || !s.curatedOnly).map((s) => ({
+  const shown =
+    path === "any" ? inWindow : inWindow.filter((p) => p.path === path);
+  const steps = GIFT_STEPS.filter(
+    (s) => path === "curated" || !s.curatedOnly,
+  ).map((s) => ({
     ...s,
     count: giftCount(shown, s.key),
   }));
   const sawLanding = shown.filter((p) => p.landing).length;
 
-  const credit = inWindow.filter((p) => p.path === 'credit');
-  const curated = inWindow.filter((p) => p.path === 'curated');
-  const compareRows: GiftCompareRow[] = GIFT_STEPS.filter((s) => s.key !== 'visited' && s.key !== 'start' && s.key !== 'path').map(
-    (s) => ({
-      key: s.key,
-      label: s.label,
-      credit: s.curatedOnly ? NaN : giftCount(credit, s.key),
-      curated: giftCount(curated, s.key),
-    }),
-  );
-  const per100 = (n: number, of: number) => (Number.isNaN(n) ? 'n/a' : of ? `${Math.round((n / of) * 100)}  (${n})` : '—');
+  const credit = inWindow.filter((p) => p.path === "credit");
+  const curated = inWindow.filter((p) => p.path === "curated");
+  const compareRows: GiftCompareRow[] = GIFT_STEPS.filter(
+    (s) => s.key !== "visited" && s.key !== "start" && s.key !== "path",
+  ).map((s) => ({
+    key: s.key,
+    label: s.label,
+    credit: s.curatedOnly ? NaN : giftCount(credit, s.key),
+    curated: giftCount(curated, s.key),
+  }));
+  const per100 = (n: number, of: number) =>
+    Number.isNaN(n)
+      ? "n/a"
+      : of
+        ? `${Math.round((n / of) * 100)}  (${n})`
+        : "—";
   const compareColumns: Column<GiftCompareRow>[] = [
-    { label: 'Step', width: 290, cell: (r) => r.label },
-    { label: `Credit (${credit.length} chose it)`, width: 180, align: 'right', cell: (r) => per100(r.credit, credit.length) },
-    { label: `Curated box (${curated.length} chose it)`, width: 200, align: 'right', cell: (r) => per100(r.curated, curated.length) },
+    { label: "Step", width: 290, cell: (r) => r.label },
+    {
+      label: `Credit (${credit.length} chose it)`,
+      width: 180,
+      align: "right",
+      cell: (r) => per100(r.credit, credit.length),
+    },
+    {
+      label: `Curated box (${curated.length} chose it)`,
+      width: 200,
+      align: "right",
+      cell: (r) => per100(r.curated, curated.length),
+    },
   ];
 
   const days: GiftDayRow[] = useMemo(() => {
@@ -2256,50 +3514,105 @@ function GiftFunnelSection({
       const d = etDay(t);
       byDay.set(d, [...(byDay.get(d) ?? []), p]);
     }
-    return [...byDay.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([day, ps]) => ({ day, people: ps }));
+    return [...byDay.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([day, ps]) => ({ day, people: ps }));
   }, [pool, now]);
   const dayColumns: Column<GiftDayRow>[] = [
-    { label: 'Day (ET)', width: 100, cell: (r) => r.day, sort: (r) => r.day },
+    { label: "Day (ET)", width: 100, cell: (r) => r.day, sort: (r) => r.day },
     ...GIFT_DAY_STEPS.map((k): Column<GiftDayRow> => {
       const count = (r: GiftDayRow) => giftCount(r.people, k);
       return {
         label: GIFT_STEPS.find((s) => s.key === k)?.short ?? k,
         width: 85,
-        align: 'right',
+        align: "right",
         cell: (r) => String(count(r)),
         sort: count,
       };
     }),
   ];
 
-  const pathLabel = (p: DashGiftFunnelPerson) => (p.path === 'credit' ? 'Credit' : p.path === 'curated' ? 'Curated box' : '—');
+  const pathLabel = (p: DashGiftFunnelPerson) =>
+    p.path === "credit" ? "Credit" : p.path === "curated" ? "Curated box" : "—";
   const peopleColumns: Column<DashGiftFunnelPerson>[] = [
-    { label: 'Last seen', width: 130, cell: (p) => when(p.lastSeen), sort: (p) => p.lastSeen },
-    { label: 'First seen', width: 130, cell: (p) => when(p.firstSeen), sort: (p) => p.firstSeen },
-    { label: 'Got to', width: 110, cell: (p) => giftFurthest(p), sort: (p) => p.reached.length },
-    { label: 'Gift', width: 100, cell: pathLabel, sort: pathLabel },
-    { label: 'Kids', width: 50, align: 'right', cell: (p) => (p.kids == null ? '—' : String(p.kids)), sort: (p) => p.kids },
-    { label: 'Items', width: 55, align: 'right', cell: (p) => (p.items ? String(p.items) : '—'), sort: (p) => p.items },
-    { label: 'Source', width: 220, cell: (p) => p.ad, sort: (p) => p.ad },
-    { label: 'Location', width: 110, cell: (p) => p.location ?? '—', sort: (p) => p.location },
-    { label: 'Signed in', width: 80, cell: (p) => (p.signedIn ? 'Yes' : '—'), sort: (p) => (p.signedIn ? 1 : 0) },
-    { label: 'Data', width: 90, cell: (p) => (p.tracked ? 'Tracked' : 'From draft'), sort: (p) => (p.tracked ? 1 : 0) },
+    {
+      label: "Last seen",
+      width: 130,
+      cell: (p) => when(p.lastSeen),
+      sort: (p) => p.lastSeen,
+    },
+    {
+      label: "First seen",
+      width: 130,
+      cell: (p) => when(p.firstSeen),
+      sort: (p) => p.firstSeen,
+    },
+    {
+      label: "Got to",
+      width: 110,
+      cell: (p) => giftFurthest(p),
+      sort: (p) => p.reached.length,
+    },
+    { label: "Gift", width: 100, cell: pathLabel, sort: pathLabel },
+    {
+      label: "Kids",
+      width: 50,
+      align: "right",
+      cell: (p) => (p.kids == null ? "—" : String(p.kids)),
+      sort: (p) => p.kids,
+    },
+    {
+      label: "Items",
+      width: 55,
+      align: "right",
+      cell: (p) => (p.items ? String(p.items) : "—"),
+      sort: (p) => p.items,
+    },
+    { label: "Source", width: 220, cell: (p) => p.ad, sort: (p) => p.ad },
+    {
+      label: "Location",
+      width: 110,
+      cell: (p) => p.location ?? "—",
+      sort: (p) => p.location,
+    },
+    {
+      label: "Signed in",
+      width: 80,
+      cell: (p) => (p.signedIn ? "Yes" : "—"),
+      sort: (p) => (p.signedIn ? 1 : 0),
+    },
+    {
+      label: "Data",
+      width: 90,
+      cell: (p) => (p.tracked ? "Tracked" : "From draft"),
+      sort: (p) => (p.tracked ? 1 : 0),
+    },
   ];
 
   return (
     <View style={styles.sectionBody}>
-      <ChipGroup value={win} onChange={setWin} options={GIFT_WINDOWS} styles={styles} />
+      <ChipGroup
+        value={win}
+        onChange={setWin}
+        options={GIFT_WINDOWS}
+        styles={styles}
+      />
       <ChipGroup
         value={path}
         onChange={setPath}
         options={[
-          ['any', 'Either gift'],
-          ['credit', 'Credit'],
-          ['curated', 'Curated box'],
+          ["any", "Either gift"],
+          ["credit", "Credit"],
+          ["curated", "Curated box"],
         ]}
         styles={styles}
       />
-      <FunnelBars steps={steps} emptyMessage="No one opened a gift page in this window." styles={styles} colors={colors} />
+      <FunnelBars
+        steps={steps}
+        emptyMessage="No one opened a gift page in this window."
+        styles={styles}
+        colors={colors}
+      />
       <Text style={styles.caption}>
         {`Everyone who opened a gift page, by when we first saw them; ${sawLanding} of ${shown.length} came through the /gift landing page. Reaching a step counts the ones before it. Step tracking (signed in or not, including the /gift landing page) started the evening of Oct 8; before that, only signed-out visitors who chose a gift were saved, and they're placed by the page they stopped on ("From draft" below), so landing-only visits and anyone who signed in mid-flow are missing from earlier days. Email and box editor only exist on the curated path, so "Either gift" skips them. Paid and claimed come from the gift's checkout record. US only and Hide tests apply; anonymous test visits can't be told apart.`}
       </Text>
@@ -2313,7 +3626,10 @@ function GiftFunnelSection({
         styles={styles}
         colors={colors}
       />
-      <Text style={styles.caption}>Per 100 people who chose that gift in this window, with the count in brackets.</Text>
+      <Text style={styles.caption}>
+        Per 100 people who chose that gift in this window, with the count in
+        brackets.
+      </Text>
 
       <Text style={styles.section}>By day</Text>
       <SortTable<GiftDayRow>
@@ -2324,14 +3640,22 @@ function GiftFunnelSection({
         styles={styles}
         colors={colors}
       />
-      <Text style={styles.caption}>Last 14 days, by the day we first saw each visitor (Eastern time).</Text>
+      <Text style={styles.caption}>
+        Last 14 days, by the day we first saw each visitor (Eastern time).
+      </Text>
 
       <Text style={styles.section}>{`People (${shown.length})`}</Text>
       <SortTable<DashGiftFunnelPerson>
         columns={peopleColumns}
         rows={shown}
         rowKey={(p) => p.id}
-        rowTone={(p) => (p.reached.includes('paid') ? 'success' : p.reached.includes('send') ? 'warning' : undefined)}
+        rowTone={(p) =>
+          p.reached.includes("paid")
+            ? "success"
+            : p.reached.includes("send")
+              ? "warning"
+              : undefined
+        }
         emptyMessage="No gift visitors match these filters."
         styles={styles}
         colors={colors}
@@ -2356,24 +3680,42 @@ function FunnelSection({
   styles: Styles;
   colors: SemanticColors;
 }) {
-  const [win, setWin] = useState<FunnelWindow>('gate');
-  const pool = useMemo(() => people.filter((p) => !(hideTests && p.test)), [people, hideTests]);
+  const [win, setWin] = useState<FunnelWindow>("gate");
+  const pool = useMemo(
+    () => people.filter((p) => !(hideTests && p.test)),
+    [people, hideTests],
+  );
   const inWindow = useMemo(() => {
     const start = windowStart(win, now);
     return pool.filter((p) => firstSeenMs(p) >= start);
   }, [pool, win, now]);
 
-  const steps = FUNNEL_STEPS.map((s) => ({ ...s, count: countStep(inWindow, s.key) }));
+  const steps = FUNNEL_STEPS.map((s) => ({
+    ...s,
+    count: countStep(inWindow, s.key),
+  }));
 
   const before = pool.filter((p) => firstSeenMs(p) < GATE_LIVE_MS && p.family);
   const after = pool.filter((p) => firstSeenMs(p) >= GATE_LIVE_MS && p.family);
-  const beforeStart = before.reduce((m, p) => Math.min(m, firstSeenMs(p)), Infinity);
+  const beforeStart = before.reduce(
+    (m, p) => Math.min(m, firstSeenMs(p)),
+    Infinity,
+  );
   const compareRows: CompareRow[] = COMPARE_STEPS.map(({ key, label }) => {
-    const has = (p: DashFunnelPerson) => (key === 'anyEmail' ? p.anyEmail : reachedStep(p, key));
-    return { key, label, before: before.filter(has).length, after: after.filter(has).length };
+    const has = (p: DashFunnelPerson) =>
+      key === "anyEmail" ? p.anyEmail : reachedStep(p, key);
+    return {
+      key,
+      label,
+      before: before.filter(has).length,
+      after: after.filter(has).length,
+    };
   });
-  const per100 = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}  (${n})` : '—');
-  const hoursBefore = Number.isFinite(beforeStart) ? Math.round((GATE_LIVE_MS - beforeStart) / 3_600_000) : 0;
+  const per100 = (n: number, of: number) =>
+    of ? `${Math.round((n / of) * 100)}  (${n})` : "—";
+  const hoursBefore = Number.isFinite(beforeStart)
+    ? Math.round((GATE_LIVE_MS - beforeStart) / 3_600_000)
+    : 0;
   const hoursAfter = Math.max(0, Math.round((now - GATE_LIVE_MS) / 3_600_000));
 
   const days: DayRow[] = useMemo(() => {
@@ -2384,42 +3726,66 @@ function FunnelSection({
       const d = etDay(t);
       byDay.set(d, [...(byDay.get(d) ?? []), p]);
     }
-    return [...byDay.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([day, ps]) => ({ day, people: ps }));
+    return [...byDay.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([day, ps]) => ({ day, people: ps }));
   }, [pool, now]);
 
   const dayCount = (k: FunnelKey) => (r: DayRow) => countStep(r.people, k);
   const dayColumns: Column<DayRow>[] = [
-    { label: 'Day (ET)', width: 100, cell: (r) => r.day, sort: (r) => r.day },
-    ...FUNNEL_STEPS.map(
-      (s): Column<DayRow> => ({
-        label: s.short,
-        width: 80,
-        align: 'right',
-        cell: (r) => String(dayCount(s.key)(r)),
-        sort: dayCount(s.key),
-      }),
-    ),
+    { label: "Day (ET)", width: 100, cell: (r) => r.day, sort: (r) => r.day },
+    ...FUNNEL_STEPS.map((s): Column<DayRow> => ({
+      label: s.short,
+      width: 80,
+      align: "right",
+      cell: (r) => String(dayCount(s.key)(r)),
+      sort: dayCount(s.key),
+    })),
     {
-      label: 'Gate pass',
+      label: "Gate pass",
       width: 85,
-      align: 'right',
+      align: "right",
       cell: (r) => {
-        const built = r.people.filter((p) => p.sliders && firstSeenMs(p) >= GATE_LIVE_MS);
-        return built.length ? pct(built.filter((p) => p.gateEmail).length, built.length) : '—';
+        const built = r.people.filter(
+          (p) => p.sliders && firstSeenMs(p) >= GATE_LIVE_MS,
+        );
+        return built.length
+          ? pct(built.filter((p) => p.gateEmail).length, built.length)
+          : "—";
       },
     },
   ];
 
   const compareColumns: Column<CompareRow>[] = [
-    { label: 'Step', width: 290, cell: (r) => r.label },
-    { label: `Before the gate (${before.length} in ${hoursBefore}h)`, width: 200, align: 'right', cell: (r) => per100(r.before, before.length) },
-    { label: `With the gate (${after.length} in ${hoursAfter}h)`, width: 200, align: 'right', cell: (r) => per100(r.after, after.length) },
+    { label: "Step", width: 290, cell: (r) => r.label },
+    {
+      label: `Before the gate (${before.length} in ${hoursBefore}h)`,
+      width: 200,
+      align: "right",
+      cell: (r) => per100(r.before, before.length),
+    },
+    {
+      label: `With the gate (${after.length} in ${hoursAfter}h)`,
+      width: 200,
+      align: "right",
+      cell: (r) => per100(r.after, after.length),
+    },
   ];
 
   return (
     <View style={styles.sectionBody}>
-      <ChipGroup value={win} onChange={setWin} options={FUNNEL_WINDOWS} styles={styles} />
-      <FunnelBars steps={steps} emptyMessage="No one opened the box builder in this window." styles={styles} colors={colors} />
+      <ChipGroup
+        value={win}
+        onChange={setWin}
+        options={FUNNEL_WINDOWS}
+        styles={styles}
+      />
+      <FunnelBars
+        steps={steps}
+        emptyMessage="No one opened the box builder in this window."
+        styles={styles}
+        colors={colors}
+      />
       <Text style={styles.caption}>
         {`Signed-out visitors who opened the box builder, by when we first saved them. Bars and % are out of everyone who opened it; the right column is how many left since the step before. Visitors who leave on the family screen are saved only from Oct 8 (evening); before that, "Opened" only counts people who got past it. "Entered email at the gate" only exists from Oct 8, 10:30am ET. Signed-in builders aren't included (they skip the gate). US only and Hide tests apply; anonymous test visits can't be told apart.`}
       </Text>
@@ -2453,24 +3819,46 @@ function FunnelSection({
   );
 }
 
-type Tab = 'boxes' | 'shop' | 'funnel' | 'giftFunnel' | 'anonymous' | 'ads' | 'gifts' | 'inventory' | 'problems' | 'program';
-const TABS: readonly Tab[] = ['boxes', 'shop', 'funnel', 'giftFunnel', 'anonymous', 'ads', 'gifts', 'inventory', 'problems', 'program'];
-const TAB_STORAGE_KEY = 'gj.adminBoxes.tab';
+type Tab =
+  | "boxes"
+  | "shop"
+  | "funnel"
+  | "giftFunnel"
+  | "anonymous"
+  | "ads"
+  | "gifts"
+  | "inventory"
+  | "comps"
+  | "problems"
+  | "program";
+const TABS: readonly Tab[] = [
+  "boxes",
+  "shop",
+  "funnel",
+  "giftFunnel",
+  "anonymous",
+  "ads",
+  "gifts",
+  "inventory",
+  "comps",
+  "program",
+];
+const TAB_STORAGE_KEY = "gj.adminBoxes.tab";
 
 /** Deep-link from Pilot admin: `/admin/orders?q=email&tab=boxes`. */
 function readOrdersLinkQuery(): string {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return '';
+  if (Platform.OS !== "web" || typeof window === "undefined") return "";
   try {
-    return new URLSearchParams(window.location.search).get('q')?.trim() ?? '';
+    return new URLSearchParams(window.location.search).get("q")?.trim() ?? "";
   } catch {
-    return '';
+    return "";
   }
 }
 
 function readOrdersLinkTab(): Tab | null {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  if (Platform.OS !== "web" || typeof window === "undefined") return null;
   try {
-    const raw = new URLSearchParams(window.location.search).get('tab');
+    const raw = new URLSearchParams(window.location.search).get("tab");
     return TABS.includes(raw as Tab) ? (raw as Tab) : null;
   } catch {
     return null;
@@ -2482,16 +3870,20 @@ function readStoredTab(): Tab {
   const fromLink = readOrdersLinkTab();
   if (fromLink) return fromLink;
   try {
-    const raw = typeof window !== 'undefined' ? window.sessionStorage?.getItem(TAB_STORAGE_KEY) : null;
-    return TABS.includes(raw as Tab) ? (raw as Tab) : 'boxes';
+    const raw =
+      typeof window !== "undefined"
+        ? window.sessionStorage?.getItem(TAB_STORAGE_KEY)
+        : null;
+    return TABS.includes(raw as Tab) ? (raw as Tab) : "boxes";
   } catch {
-    return 'boxes';
+    return "boxes";
   }
 }
 
 function storeTab(tab: Tab): void {
   try {
-    if (typeof window !== 'undefined') window.sessionStorage?.setItem(TAB_STORAGE_KEY, tab);
+    if (typeof window !== "undefined")
+      window.sessionStorage?.setItem(TAB_STORAGE_KEY, tab);
   } catch {
     // Private mode / native: tab just resets on reload.
   }
@@ -2508,7 +3900,7 @@ const DENSE_PHONE: Record<string, object> = {
   chip: { minHeight: 30, paddingHorizontal: 10, paddingVertical: 4 },
   chipLabel: { fontSize: 12.5 },
   stats: { gap: 6 },
-  stat: { flexBasis: '45%', padding: 10, borderRadius: 10 },
+  stat: { flexBasis: "45%", padding: 10, borderRadius: 10 },
   statValue: { fontSize: 18, lineHeight: 22 },
   statLabel: { fontSize: 11.5, lineHeight: 14, marginTop: 1 },
   sectionDivider: { marginTop: 10, marginBottom: 8 },
@@ -2528,15 +3920,26 @@ export function AdminBoxesScreen() {
   const { isDesktop } = useWebLayout();
   const mobile = useMobileLayout();
   const insets = useSafeAreaInsets();
-  const baseStyles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
-  const styles = useMemo(() => (mobile ? paintOpsMobile(baseStyles, DENSE_PHONE) : baseStyles), [mobile, baseStyles]);
+  const baseStyles = useMemo(
+    () => createStyles(colors, isDesktop),
+    [colors, isDesktop],
+  );
+  const styles = useMemo(
+    () => (mobile ? paintOpsMobile(baseStyles, DENSE_PHONE) : baseStyles),
+    [mobile, baseStyles],
+  );
   const user = useAuthStore((s) => s.user);
   const allowed = isOpsAdmin(user);
   const { data, error, refreshing, refresh } = useBoxesDashboard(allowed);
   const hostRef = useRef<View>(null);
   // Stack screens on web grow to content height; pin to the viewport so the ScrollView scrolls (iOS especially).
   const pinnedHeight = useViewportPinnedHeight(hostRef, true);
-  const hostStyle = [styles.host, pinnedHeight != null ? { height: pinnedHeight, maxHeight: pinnedHeight } : null];
+  const hostStyle = [
+    styles.host,
+    pinnedHeight != null
+      ? { height: pinnedHeight, maxHeight: pinnedHeight }
+      : null,
+  ];
   const [tab, setTabState] = useState<Tab>(readStoredTab);
   const setTab = (next: Tab) => {
     setTabState(next);
@@ -2555,31 +3958,50 @@ export function AdminBoxesScreen() {
     return () => clearInterval(t);
   }, []);
 
-  const inventory = useMemo(() => (data ? inventoryFor(data, hideTests) : []), [data, hideTests]);
-  const inventoryById = useMemo(() => new Map(inventory.map((i) => [i.id, i])), [inventory]);
+  const inventory = useMemo(
+    () => (data ? inventoryFor(data, hideTests) : []),
+    [data, hideTests],
+  );
+  const inventoryById = useMemo(
+    () => new Map(inventory.map((i) => [i.id, i])),
+    [inventory],
+  );
   // Inventory keeps every row: stock held by a non-US / high-practice box is still held.
   const shown = useMemo(() => {
     if (!data) return data;
     if (!usOnly && !lowPracticeOnly) return data;
-    const keepPractice = (jewish: number | null | undefined, hanukkah: number | null | undefined) =>
-      !lowPracticeOnly || countsAsLowPractice(jewish, hanukkah);
+    const keepPractice = (
+      jewish: number | null | undefined,
+      hanukkah: number | null | undefined,
+    ) => !lowPracticeOnly || countsAsLowPractice(jewish, hanukkah);
     return {
       ...data,
       boxes: data.boxes.filter(
-        (b) => (!usOnly || !b.outsideUs) && keepPractice(b.answers?.jewish, b.answers?.hanukkah)
+        (b) =>
+          (!usOnly || !b.outsideUs) &&
+          keepPractice(b.answers?.jewish, b.answers?.hanukkah),
       ),
       guests: data.guests.filter(
-        (g) => (!usOnly || !g.outsideUs) && keepPractice(g.answers?.jewish, g.answers?.hanukkah)
+        (g) =>
+          (!usOnly || !g.outsideUs) &&
+          keepPractice(g.answers?.jewish, g.answers?.hanukkah),
       ),
       gifts: data.gifts.filter(
-        (g) => (!usOnly || !g.outsideUs) && keepPractice(g.recipientAnswers?.jewish, g.recipientAnswers?.hanukkah)
+        (g) =>
+          (!usOnly || !g.outsideUs) &&
+          keepPractice(
+            g.recipientAnswers?.jewish,
+            g.recipientAnswers?.hanukkah,
+          ),
       ),
       adPeople: (data.adPeople ?? []).filter(
-        (p) => (!usOnly || !p.outsideUs) && keepPractice(p.jewish, p.hanukkah)
+        (p) => (!usOnly || !p.outsideUs) && keepPractice(p.jewish, p.hanukkah),
       ),
       // Funnel rows have no practice score — US-only still applies; practice filter leaves them alone.
       funnel: (data.funnel ?? []).filter((p) => !usOnly || !p.outsideUs),
-      giftFunnel: (data.giftFunnel ?? []).filter((p) => !usOnly || !p.outsideUs),
+      giftFunnel: (data.giftFunnel ?? []).filter(
+        (p) => !usOnly || !p.outsideUs,
+      ),
     };
   }, [data, usOnly, lowPracticeOnly]);
 
@@ -2596,7 +4018,9 @@ export function AdminBoxesScreen() {
         <WebContentPanel {...panelProps}>
           <View style={styles.centered}>
             <Text style={styles.title}>Admin only</Text>
-            <Text style={styles.hint}>This page is limited to allowlisted ops accounts.</Text>
+            <Text style={styles.hint}>
+              This page is limited to allowlisted ops accounts.
+            </Text>
             <TouchableOpacity onPress={() => navigation.goBack()}>
               <Text style={styles.backLink}>← Back</Text>
             </TouchableOpacity>
@@ -2615,7 +4039,10 @@ export function AdminBoxesScreen() {
               <>
                 <Text style={styles.error}>{error}</Text>
                 {mobile ? (
-                  <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
+                  <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    hitSlop={12}
+                  >
                     <Text style={styles.backLink}>← Account</Text>
                   </TouchableOpacity>
                 ) : null}
@@ -2633,50 +4060,71 @@ export function AdminBoxesScreen() {
   }
 
   const view = shown ?? data;
-  const real = view.boxes.filter((b) => !b.playthrough && !(hideTests && b.test));
-  const liveOrders = real.filter((b) => b.source === 'order' && LIVE.includes(b.status));
+  const real = view.boxes.filter(
+    (b) => !b.playthrough && !(hideTests && b.test),
+  );
+  const liveOrders = real.filter(
+    (b) => b.source === "order" && LIVE.includes(b.status),
+  );
   const committedEmails = new Set(
     data.boxes
       .filter(
         (b) =>
           !b.playthrough &&
           !(hideTests && b.test) &&
-          b.source === 'order' &&
-          ['committed', 'confirmed', 'shipped', 'delivered'].includes(b.status)
+          b.source === "order" &&
+          ["committed", "confirmed", "shipped", "delivered"].includes(b.status),
       )
-      .map((b) => (b.email ?? '').trim().toLowerCase())
-      .filter((email) => email.length > 0)
+      .map((b) => (b.email ?? "").trim().toLowerCase())
+      .filter((email) => email.length > 0),
   );
   const openDrafts = real.filter((b) => {
-    if (b.status !== 'draft') return false;
-    const email = (b.email ?? '').trim().toLowerCase();
+    if (b.status !== "draft") return false;
+    const email = (b.email ?? "").trim().toLowerCase();
     return email.length === 0 || !committedEmails.has(email);
   });
-  const realGifts = view.gifts.filter((g) => !g.playthrough && !(hideTests && g.test));
+  const realGifts = view.gifts.filter(
+    (g) => !g.playthrough && !(hideTests && g.test),
+  );
   const testBoxes = view.boxes.filter((b) => b.test && !b.playthrough).length;
   const testGifts = view.gifts.filter((g) => g.test && !g.playthrough).length;
-  const outsideBoxes = data.boxes.filter((b) => b.outsideUs && !b.playthrough && !(hideTests && b.test)).length;
-  const outsideGuests = data.guests.filter((g) => g.outsideUs).length;
-  const outsideGifts = data.gifts.filter((g) => g.outsideUs && !g.playthrough && !(hideTests && g.test)).length;
-  const notLowPractice = (jewish: number | null | undefined, hanukkah: number | null | undefined) =>
-    !countsAsLowPractice(jewish, hanukkah);
-  const highPracticeBoxes = data.boxes.filter(
-    (b) => !b.playthrough && !(hideTests && b.test) && notLowPractice(b.answers?.jewish, b.answers?.hanukkah)
+  const outsideBoxes = data.boxes.filter(
+    (b) => b.outsideUs && !b.playthrough && !(hideTests && b.test),
   ).length;
-  const highPracticeGuests = data.guests.filter((g) => notLowPractice(g.answers?.jewish, g.answers?.hanukkah)).length;
+  const outsideGuests = data.guests.filter((g) => g.outsideUs).length;
+  const outsideGifts = data.gifts.filter(
+    (g) => g.outsideUs && !g.playthrough && !(hideTests && g.test),
+  ).length;
+  const notLowPractice = (
+    jewish: number | null | undefined,
+    hanukkah: number | null | undefined,
+  ) => !countsAsLowPractice(jewish, hanukkah);
+  const highPracticeBoxes = data.boxes.filter(
+    (b) =>
+      !b.playthrough &&
+      !(hideTests && b.test) &&
+      notLowPractice(b.answers?.jewish, b.answers?.hanukkah),
+  ).length;
+  const highPracticeGuests = data.guests.filter((g) =>
+    notLowPractice(g.answers?.jewish, g.answers?.hanukkah),
+  ).length;
   const highPracticeGifts = data.gifts.filter(
     (g) =>
       !g.playthrough &&
       !(hideTests && g.test) &&
-      notLowPractice(g.recipientAnswers?.jewish, g.recipientAnswers?.hanukkah)
+      notLowPractice(g.recipientAnswers?.jewish, g.recipientAnswers?.hanukkah),
   ).length;
   const openGuests = view.guests.filter((g) => !g.converted);
-  const giftStarters = (view.giftFunnel ?? []).filter((p) => !(hideTests && p.test) && p.reached.includes('start')).length;
+  const giftStarters = (view.giftFunnel ?? []).filter(
+    (p) => !(hideTests && p.test) && p.reached.includes("start"),
+  ).length;
   const liveRevenue = liveOrders.reduce((s, b) => s + (b.totalCents ?? 0), 0);
   const draftValue = openDrafts.reduce((s, b) => s + (b.subtotalCents ?? 0), 0);
   const shopOrders = data.shopOrders ?? [];
-  const realShop = shopOrders.filter((o) => !(hideTests && (o.test || o.playthrough)));
-  const shopPaid = realShop.filter((o) => o.paid && o.status !== 'refunded');
+  const realShop = shopOrders.filter(
+    (o) => !(hideTests && (o.test || o.playthrough)),
+  );
+  const shopPaid = realShop.filter((o) => o.paid && o.status !== "refunded");
   const testShop = shopOrders.filter((o) => o.test || o.playthrough).length;
   const paidGifts = realGifts.filter((g) => g.paid);
   const shopRevenue = shopPaid.reduce((s, o) => s + shopNetCents(o), 0);
@@ -2691,31 +4139,45 @@ export function AdminBoxesScreen() {
           style={styles.root}
           contentContainerStyle={[
             styles.content,
-            mobile && { paddingTop: 12 + insets.top, paddingBottom: 96 + insets.bottom, paddingHorizontal: mGutter },
+            mobile && {
+              paddingTop: 12 + insets.top,
+              paddingBottom: 96 + insets.bottom,
+              paddingHorizontal: mGutter,
+            },
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12} style={styles.backWrap}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={12}
+            style={styles.backWrap}
+          >
             <Text style={styles.backLink}>← Account</Text>
           </TouchableOpacity>
           <View style={styles.headerBlock}>
             <Text style={styles.title}>Orders and Inventory</Text>
             {mobile ? null : (
               <Text style={styles.subtitle}>
-                {`${data.counts.households} households · box lock ${data.lockAt ? when(data.lockAt) : 'not set'}`}
+                {`${data.counts.households} households · box lock ${data.lockAt ? when(data.lockAt) : "not set"}`}
               </Text>
             )}
             <Text style={styles.meta}>
-              {mobile ? `${data.counts.households} households · lock ${data.lockAt ? when(data.lockAt) : 'not set'} · ` : ''}
+              {mobile
+                ? `${data.counts.households} households · lock ${data.lockAt ? when(data.lockAt) : "not set"} · `
+                : ""}
               {refreshing
-                ? 'Updating…'
+                ? "Updating…"
                 : mobile
                   ? `updated ${ago(data.generatedAt, now)}`
                   : `Updated ${ago(data.generatedAt, now)} · refreshes every ${DASHBOARD_REFRESH_MS / 60_000} min`}
-              {error ? ` · last refresh failed: ${error}` : ''}
+              {error ? ` · last refresh failed: ${error}` : ""}
             </Text>
             <ChipRow styles={styles} style={styles.headerChips}>
-              <Chip label={mobile ? 'Refresh' : 'Refresh now'} onPress={() => void refresh()} styles={styles} />
+              <Chip
+                label={mobile ? "Refresh" : "Refresh now"}
+                onPress={() => void refresh()}
+                styles={styles}
+              />
               <Chip
                 label={
                   mobile
@@ -2749,20 +4211,29 @@ export function AdminBoxesScreen() {
             </ChipRow>
             {mobile ? null : (
               <Text style={styles.meta}>
-                US only hides rows known to be outside the US: a non-US ship-to address, else a non-US IP. Rows with no
-                location stay in. Only practice 59 or below keeps a Jewish practice answer of 59 or lower. A 50 counts
-                only when Hanukkah is also answered and under 60; both sliders left at 50, and missing answers, are
-                out. Funnel tabs and inventory are unaffected by practice; inventory is
-                unaffected by US only too.
+                US only hides rows known to be outside the US: a non-US ship-to
+                address, else a non-US IP. Rows with no location stay in. Only
+                practice 59 or below keeps a Jewish practice answer of 59 or
+                lower. A 50 counts only when Hanukkah is also answered and under
+                60; both sliders left at 50, and missing answers, are out.
+                Funnel tabs and inventory are unaffected by practice; inventory
+                is unaffected by US only too.
               </Text>
             )}
           </View>
 
           {data.mismatches.length ? (
             <View style={styles.alert}>
-              <Text style={styles.alertTitle}>Inventory counters disagree with this snapshot</Text>
+              <Text style={styles.alertTitle}>
+                Inventory counters disagree with this snapshot
+              </Text>
               <Text style={styles.hint}>
-                {data.mismatches.map((m) => `${m.name}: computed ${m.computed}, server counter ${m.counter}`).join(' · ')}
+                {data.mismatches
+                  .map(
+                    (m) =>
+                      `${m.name}: computed ${m.computed}, server counter ${m.counter}`,
+                  )
+                  .join(" · ")}
               </Text>
             </View>
           ) : null}
@@ -2812,30 +4283,70 @@ export function AdminBoxesScreen() {
 
           <View style={styles.sectionDivider} />
           <ChipRow styles={styles}>
-            <Chip label={`Boxes (${real.length})`} active={tab === 'boxes'} onPress={() => setTab('boxes')} styles={styles} />
             <Chip
-              label={`Shop orders (${realShop.filter((o) => !o.abandoned).length})`}
-              active={tab === 'shop'}
-              onPress={() => setTab('shop')}
+              label={`Boxes (${real.length})`}
+              active={tab === "boxes"}
+              onPress={() => setTab("boxes")}
               styles={styles}
             />
-            <Chip label="Box funnel" active={tab === 'funnel'} onPress={() => setTab('funnel')} styles={styles} />
-            <Chip label="Gift funnel" active={tab === 'giftFunnel'} onPress={() => setTab('giftFunnel')} styles={styles} />
-            <Chip label={`Anonymous (${openGuests.length})`} active={tab === 'anonymous'} onPress={() => setTab('anonymous')} styles={styles} />
-            <Chip label="By ad" active={tab === 'ads'} onPress={() => setTab('ads')} styles={styles} />
-            <Chip label={`Gifts (${realGifts.length})`} active={tab === 'gifts'} onPress={() => setTab('gifts')} styles={styles} />
-            <Chip label={`Inventory (${inventory.length})`} active={tab === 'inventory'} onPress={() => setTab('inventory')} styles={styles} />
-            <Chip label="Program" active={tab === 'program'} onPress={() => setTab('program')} styles={styles} />
             <Chip
-              label={`Box problems (${(data.boxProblems ?? []).filter((b) => b.open > 0 && !(hideTests && b.test)).length})`}
-              active={tab === 'problems'}
-              onPress={() => setTab('problems')}
+              label={`Shop orders (${realShop.filter((o) => !o.abandoned).length})`}
+              active={tab === "shop"}
+              onPress={() => setTab("shop")}
+              styles={styles}
+            />
+            <Chip
+              label="Box funnel"
+              active={tab === "funnel"}
+              onPress={() => setTab("funnel")}
+              styles={styles}
+            />
+            <Chip
+              label="Gift funnel"
+              active={tab === "giftFunnel"}
+              onPress={() => setTab("giftFunnel")}
+              styles={styles}
+            />
+            <Chip
+              label={`Anonymous (${openGuests.length})`}
+              active={tab === "anonymous"}
+              onPress={() => setTab("anonymous")}
+              styles={styles}
+            />
+            <Chip
+              label="By ad"
+              active={tab === "ads"}
+              onPress={() => setTab("ads")}
+              styles={styles}
+            />
+            <Chip
+              label={`Gifts (${realGifts.length})`}
+              active={tab === "gifts"}
+              onPress={() => setTab("gifts")}
+              styles={styles}
+            />
+            <Chip
+              label={`Inventory (${inventory.length})`}
+              active={tab === "inventory"}
+              onPress={() => setTab("inventory")}
+              styles={styles}
+            />
+            <Chip
+              label="Comps"
+              active={tab === "comps"}
+              onPress={() => setTab("comps")}
+              styles={styles}
+            />
+            <Chip
+              label="Program"
+              active={tab === "program"}
+              onPress={() => setTab("program")}
               styles={styles}
             />
           </ChipRow>
           {mobile ? <View style={styles.sectionDivider} /> : null}
 
-          {tab === 'boxes' ? (
+          {tab === "boxes" ? (
             <>
               {mobile ? null : <Text style={styles.section}>Boxes</Text>}
               <BoxesSection
@@ -2848,29 +4359,56 @@ export function AdminBoxesScreen() {
               />
             </>
           ) : null}
-          {tab === 'shop' ? (
+          {tab === "shop" ? (
             <>
-              <Text style={styles.section}>Shop orders: storefront purchases without a box</Text>
+              <Text style={styles.section}>
+                Shop orders: storefront purchases without a box
+              </Text>
               {data.shopOrders ? (
-                <ShopOrdersSection orders={shopOrders} hideTests={hideTests} now={now} styles={styles} colors={colors} />
+                <ShopOrdersSection
+                  orders={shopOrders}
+                  hideTests={hideTests}
+                  now={now}
+                  styles={styles}
+                  colors={colors}
+                />
               ) : (
-                <Text style={styles.hint}>Shop orders appear once the updated dashboard function is deployed.</Text>
+                <Text style={styles.hint}>
+                  Shop orders appear once the updated dashboard function is
+                  deployed.
+                </Text>
               )}
             </>
           ) : null}
-          {tab === 'funnel' ? (
+          {tab === "funnel" ? (
             <>
-              <Text style={styles.section}>Box builder funnel: where people drop off</Text>
-              <FunnelSection people={view.funnel ?? []} hideTests={hideTests} now={now} styles={styles} colors={colors} />
+              <Text style={styles.section}>
+                Box builder funnel: where people drop off
+              </Text>
+              <FunnelSection
+                people={view.funnel ?? []}
+                hideTests={hideTests}
+                now={now}
+                styles={styles}
+                colors={colors}
+              />
             </>
           ) : null}
-          {tab === 'giftFunnel' ? (
+          {tab === "giftFunnel" ? (
             <>
-              <Text style={styles.section}>Gift funnel: where gift givers drop off</Text>
-              <GiftFunnelSection people={view.giftFunnel ?? []} hideTests={hideTests} now={now} styles={styles} colors={colors} />
+              <Text style={styles.section}>
+                Gift funnel: where gift givers drop off
+              </Text>
+              <GiftFunnelSection
+                people={view.giftFunnel ?? []}
+                hideTests={hideTests}
+                now={now}
+                styles={styles}
+                colors={colors}
+              />
             </>
           ) : null}
-          {tab === 'anonymous' ? (
+          {tab === "anonymous" ? (
             <>
               <Text style={styles.section}>Anonymous boxes</Text>
               <AnonymousSection
@@ -2882,33 +4420,57 @@ export function AdminBoxesScreen() {
               />
             </>
           ) : null}
-          {tab === 'ads' ? (
+          {tab === "ads" ? (
             <>
-              <Text style={styles.section}>By ad: how far people get, and who they are</Text>
-              <AdsSection people={view.adPeople ?? []} metaByAd={data.metaByAd ?? null} hideTests={hideTests} styles={styles} colors={colors} />
+              <Text style={styles.section}>
+                By ad: how far people get, and who they are
+              </Text>
+              <AdsSection
+                people={view.adPeople ?? []}
+                metaByAd={data.metaByAd ?? null}
+                hideTests={hideTests}
+                styles={styles}
+                colors={colors}
+              />
             </>
           ) : null}
-          {tab === 'gifts' ? (
+          {tab === "gifts" ? (
             <>
               {mobile ? null : <Text style={styles.section}>Gifts</Text>}
-              <GiftsSection data={view} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
+              <GiftsSection
+                data={view}
+                hideTests={hideTests}
+                inventoryById={inventoryById}
+                styles={styles}
+                colors={colors}
+              />
             </>
           ) : null}
-          {tab === 'inventory' ? (
+          {tab === "inventory" ? (
             <>
-              <Text style={styles.section}>Inventory: stock, boxes, shop sales and holds</Text>
-              <InventorySection inventory={inventory} styles={styles} colors={colors} />
+              <Text style={styles.section}>
+                Inventory: stock, boxes, shop sales and holds
+              </Text>
+              <InventorySection
+                inventory={inventory}
+                styles={styles}
+                colors={colors}
+              />
             </>
           ) : null}
-          {tab === 'program' ? (
+          {tab === "comps" ? (
+            <>
+              <Text style={styles.section}>Complimentary shipments</Text>
+              <AdminCompsTab
+                inventory={inventory}
+                styles={styles}
+                colors={colors}
+              />
+            </>
+          ) : null}
+          {tab === "program" ? (
             <>
               <AdminProgramTab styles={styles} colors={colors} />
-            </>
-          ) : null}
-          {tab === 'problems' ? (
-            <>
-              <Text style={styles.section}>Box problems: boxes that don't match what's included</Text>
-              <BoxProblemsSection data={data} hideTests={hideTests} styles={styles} colors={colors} onRefresh={() => void refresh()} />
             </>
           ) : null}
         </ScrollView>
@@ -2919,52 +4481,68 @@ export function AdminBoxesScreen() {
 
 function createStyles(colors: SemanticColors, isDesktop: boolean) {
   return StyleSheet.create({
-    host: { flex: 1, width: '100%', minHeight: 0, backgroundColor: colors.bgPrimary },
-    panel: { flex: 1, width: '100%', minHeight: 0, backgroundColor: colors.bgPrimary },
+    host: {
+      flex: 1,
+      width: "100%",
+      minHeight: 0,
+      backgroundColor: colors.bgPrimary,
+    },
+    panel: {
+      flex: 1,
+      width: "100%",
+      minHeight: 0,
+      backgroundColor: colors.bgPrimary,
+    },
     root: { flex: 1, backgroundColor: colors.bgPrimary },
     content: {
       padding: spacing.lg,
       paddingTop: spacing.xl,
       paddingBottom: 120,
       maxWidth: isDesktop ? 1120 : undefined,
-      width: '100%',
-      alignSelf: isDesktop ? 'center' : undefined,
+      width: "100%",
+      alignSelf: isDesktop ? "center" : undefined,
     },
-    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.sm },
-    backWrap: { alignSelf: 'flex-start' },
+    centered: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.lg,
+      gap: spacing.sm,
+    },
+    backWrap: { alignSelf: "flex-start" },
     backLink: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       fontSize: typography.md,
       color: colors.textSecondary,
       letterSpacing: -0.22,
     },
-    headerBlock: { alignItems: 'center', marginTop: spacing.sm },
+    headerBlock: { alignItems: "center", marginTop: spacing.sm },
     title: {
-      ...typeface('medium'),
+      ...typeface("medium"),
       fontSize: 36,
       letterSpacing: -0.8,
       color: colors.textPrimary,
-      textAlign: 'center',
+      textAlign: "center",
     },
     subtitle: {
-      ...typeface('light'),
+      ...typeface("light"),
       fontSize: typography.lg,
       marginTop: spacing.sm,
       color: colors.textPrimary,
       letterSpacing: -0.26,
-      textAlign: 'center',
+      textAlign: "center",
     },
     meta: {
-      ...typeface('light'),
+      ...typeface("light"),
       fontSize: typography.sm,
       color: colors.goldMuted,
       marginTop: 4,
       letterSpacing: -0.22,
-      textAlign: 'center',
+      textAlign: "center",
     },
-    headerChips: { justifyContent: 'center', marginTop: spacing.md },
+    headerChips: { justifyContent: "center", marginTop: spacing.md },
     section: {
-      ...typeface('medium'),
+      ...typeface("medium"),
       fontSize: 22,
       lineHeight: 28,
       letterSpacing: -0.3,
@@ -2973,7 +4551,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       marginBottom: spacing.sm,
     },
     sectionDivider: {
-      alignSelf: 'stretch',
+      alignSelf: "stretch",
       height: StyleSheet.hairlineWidth,
       backgroundColor: colors.border,
       marginTop: spacing.lg,
@@ -2981,20 +4559,25 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     sectionBody: { gap: spacing.sm },
     hint: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       fontSize: typography.md,
       letterSpacing: -0.22,
       color: colors.textSecondary,
       lineHeight: 18,
     },
     caption: {
-      ...typeface('light'),
+      ...typeface("light"),
       fontSize: typography.sm,
       color: colors.textSecondary,
       letterSpacing: -0.22,
       lineHeight: 17,
     },
-    error: { ...typeface('regular'), fontSize: typography.md, color: colors.error, textAlign: 'center' },
+    error: {
+      ...typeface("regular"),
+      fontSize: typography.md,
+      color: colors.error,
+      textAlign: "center",
+    },
     alert: {
       marginTop: spacing.md,
       padding: spacing.sm,
@@ -3003,23 +4586,32 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       borderColor: colors.error,
       gap: 4,
     },
-    alertTitle: { ...typeface('medium'), fontSize: typography.md, color: colors.error },
-    stats: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+    alertTitle: {
+      ...typeface("medium"),
+      fontSize: typography.md,
+      color: colors.error,
+    },
+    stats: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
     stat: { flexGrow: 1, flexBasis: isDesktop ? 160 : 140, minWidth: 0 },
     statValue: {
-      ...typeface('medium'),
+      ...typeface("medium"),
       fontSize: 28,
       letterSpacing: -0.6,
       color: colors.textPrimary,
     },
     statLabel: {
-      ...typeface('light'),
+      ...typeface("light"),
       fontSize: typography.sm,
       color: colors.textSecondary,
       letterSpacing: -0.22,
       marginTop: 2,
     },
-    chipRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
+    chipRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: spacing.xs,
+    },
     chip: {
       borderRadius: borderRadius.xl,
       borderWidth: StyleSheet.hairlineWidth,
@@ -3028,19 +4620,19 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       paddingHorizontal: spacing.sm,
       paddingVertical: 6,
       minHeight: 32,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
     },
     chipActive: { backgroundColor: colors.brand },
     chipLabel: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       fontSize: typography.sm,
       color: colors.textPrimary,
       letterSpacing: -0.22,
     },
-    colPicker: { alignSelf: 'flex-start', zIndex: 20, elevation: 20 },
+    colPicker: { alignSelf: "flex-start", zIndex: 20, elevation: 20 },
     colMenu: {
-      position: 'absolute',
+      position: "absolute",
       top: 38,
       left: 0,
       width: 240,
@@ -3048,45 +4640,70 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       borderWidth: StyleSheet.hairlineWidth,
       borderRadius: borderRadius.xl,
       paddingVertical: spacing.xs,
-      ...(Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.md } as object) : shadows.md),
+      ...(Platform.OS === "web"
+        ? ({ boxShadow: shadowsWeb.md } as object)
+        : shadows.md),
     },
     colMenuActions: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      justifyContent: "space-between",
       paddingHorizontal: spacing.sm,
       paddingBottom: spacing.xs,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
-    colMenuAction: { ...typeface('medium'), fontSize: typography.sm, color: colors.brand, letterSpacing: -0.22 },
+    colMenuAction: {
+      ...typeface("medium"),
+      fontSize: typography.sm,
+      color: colors.brand,
+      letterSpacing: -0.22,
+    },
     colMenuList: { flexGrow: 0 },
-    colMenuRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: 5 },
-    colMenuCheck: { width: 16, fontSize: 14, lineHeight: 16, color: colors.textPrimary, textAlign: 'center' },
+    colMenuRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 5,
+    },
+    colMenuCheck: {
+      width: 16,
+      fontSize: 14,
+      lineHeight: 16,
+      color: colors.textPrimary,
+      textAlign: "center",
+    },
     colMenuCheckOff: { opacity: 0 },
-    colMenuLabel: { ...typeface('regular'), flex: 1, fontSize: typography.sm, color: colors.textPrimary, letterSpacing: -0.22 },
+    colMenuLabel: {
+      ...typeface("regular"),
+      flex: 1,
+      fontSize: typography.sm,
+      color: colors.textPrimary,
+      letterSpacing: -0.22,
+    },
     colMenuLabelLocked: { color: colors.textTertiary },
     input: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.brand,
       borderRadius: borderRadius.xl,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.xs,
-      fontSize: Platform.OS === 'web' ? 14 : 16,
+      fontSize: Platform.OS === "web" ? 14 : 16,
       color: colors.textPrimary,
       minHeight: 40,
       maxWidth: 360,
     },
     tr: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       paddingVertical: isDesktop ? 4 : spacing.xs,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
     trHead: { borderBottomColor: colors.borderDark },
     th: {
-      ...typeface('medium'),
+      ...typeface("medium"),
       fontSize: isDesktop ? 12 : typography.sm,
       lineHeight: isDesktop ? 15 : undefined,
       color: colors.textSecondary,
@@ -3095,24 +4712,29 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     thActive: { color: colors.textPrimary },
     td: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       fontSize: isDesktop ? 13 : typography.md,
       lineHeight: isDesktop ? 17 : undefined,
       color: colors.textPrimary,
       letterSpacing: isDesktop ? -0.1 : -0.22,
     },
-    tdStrong: { ...typeface('medium') },
+    tdStrong: { ...typeface("medium") },
     tdMuted: {
-      ...typeface('light'),
+      ...typeface("light"),
       fontSize: isDesktop ? 11.5 : typography.sm,
       color: colors.textSecondary,
     },
-    pinCell: { alignSelf: 'stretch', justifyContent: 'center' },
+    pinCell: { alignSelf: "stretch", justifyContent: "center" },
     pinEdge: { borderRightWidth: 1, borderRightColor: colors.border },
-    right: { textAlign: 'right' },
+    right: { textAlign: "right" },
     funnel: { gap: spacing.xs, marginTop: spacing.xs },
-    funnelRow: { flexDirection: 'row', alignItems: 'center', flexWrap: isDesktop ? 'nowrap' : 'wrap', gap: spacing.sm },
-    funnelLabel: { width: isDesktop ? 240 : '100%' },
+    funnelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: isDesktop ? "nowrap" : "wrap",
+      gap: spacing.sm,
+    },
+    funnelLabel: { width: isDesktop ? 240 : "100%" },
     funnelTrack: {
       flexGrow: 1,
       flexBasis: isDesktop ? 0 : 140,
@@ -3120,15 +4742,19 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       height: 18,
       borderRadius: 9,
       backgroundColor: colors.bgElevated,
-      overflow: 'hidden',
+      overflow: "hidden",
     },
-    funnelFill: { height: '100%', borderRadius: 9 },
-    funnelNum: { width: 44, textAlign: 'right' },
-    funnelDrop: { width: 96, textAlign: 'right' },
-    dotCell: { width: 20, alignItems: 'center' },
+    funnelFill: { height: "100%", borderRadius: 9 },
+    funnelNum: { width: 44, textAlign: "right" },
+    funnelDrop: { width: 96, textAlign: "right" },
+    dotCell: { width: 20, alignItems: "center" },
     dot: { width: 7, height: 7, borderRadius: 4 },
     toggleCell: { width: 28 },
-    toggle: { ...typeface('regular'), fontSize: 16, color: colors.textTertiary },
+    toggle: {
+      ...typeface("regular"),
+      fontSize: 16,
+      color: colors.textTertiary,
+    },
     detail: {
       paddingVertical: spacing.sm,
       paddingLeft: 48,
@@ -3138,24 +4764,24 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     detailInner: { gap: spacing.sm, paddingRight: spacing.sm },
     facts: { gap: 2, maxWidth: 420 },
-    factRow: { flexDirection: 'row', gap: spacing.sm },
+    factRow: { flexDirection: "row", gap: spacing.sm },
     factKey: {
-      ...typeface('light'),
+      ...typeface("light"),
       fontSize: typography.sm,
       color: colors.textSecondary,
       width: 120,
     },
     factValue: {
-      ...typeface('regular'),
+      ...typeface("regular"),
       fontSize: typography.sm,
       color: colors.textPrimary,
       flex: 1,
     },
     quote: {
-      ...typeface('light'),
+      ...typeface("light"),
       fontSize: typography.md,
       color: colors.textSecondary,
-      fontStyle: 'italic',
+      fontStyle: "italic",
     },
   });
 }

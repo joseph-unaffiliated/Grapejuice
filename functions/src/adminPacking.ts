@@ -1,15 +1,21 @@
-import { FieldValue, type DocumentData, type DocumentReference, type Firestore } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from './sentry';
-import { isAdminToken } from './guestSessions';
-import { isTest } from './testAccounts';
-import { historyLines, type HistoryLine } from './boxHistoryDiff';
-import { lineOriginVsDefault, type DashLineOrigin } from './adminDashboard';
-import { shopOrderState } from './shopOrders';
+import {
+  FieldValue,
+  type DocumentData,
+  type DocumentReference,
+  type Firestore,
+} from "firebase-admin/firestore";
+import { HttpsError, onCall } from "./sentry";
+import { isAdminToken } from "./guestSessions";
+import { isTest } from "./testAccounts";
+import { historyLines, type HistoryLine } from "./boxHistoryDiff";
+import { lineOriginVsDefault, type DashLineOrigin } from "./adminDashboard";
+import { shopOrderState } from "./shopOrders";
 
 /**
- * Packing list for the warehouse: paid Hanukkah boxes, paid storefront (shop) orders and paid gift
- * boxes that have a ship-to address. Each package gets a box size and each line gets a shared
- * "packed" checkbox. Size and packed state live in `packingPackages/{packageId}` (admin SDK only).
+ * Packing list for the warehouse: paid Hanukkah boxes, paid storefront (shop) orders, paid gift
+ * boxes that have a ship-to address, and complimentary boxes (with or without an address yet).
+ * Each package gets a box size and each line gets a shared "packed" checkbox. Size and packed
+ * state live in `packingPackages/{packageId}` (admin SDK only).
  *
  * Box orders are only "paid" once charged at lock (status confirmed or later), so they appear after lock.
  * Committed boxes (checkout done, card not charged) are included with `awaitingPayment` so the
@@ -17,29 +23,31 @@ import { shopOrderState } from './shopOrders';
  * default list.
  */
 
-const HOLIDAY_ID = 'hanukkah-2026';
-const CHARGED_BOX_STATUSES = ['confirmed', 'shipped', 'delivered'];
+const HOLIDAY_ID = "hanukkah-2026";
+const CHARGED_BOX_STATUSES = ["confirmed", "shipped", "delivered"];
 
 /** Charged box orders always pack. Committed orders are the post-lock preview. Everything else stays off the list. */
-export function packingBoxCharge(status: unknown): 'charged' | 'awaiting' | 'hidden' {
-  const s = String(status ?? '');
-  if (CHARGED_BOX_STATUSES.includes(s)) return 'charged';
-  if (s === 'committed') return 'awaiting';
-  return 'hidden';
+export function packingBoxCharge(
+  status: unknown,
+): "charged" | "awaiting" | "hidden" {
+  const s = String(status ?? "");
+  if (CHARGED_BOX_STATUSES.includes(s)) return "charged";
+  if (s === "committed") return "awaiting";
+  return "hidden";
 }
-const PACKING_COLLECTION = 'packingPackages';
-const PACKAGE_ID = /^(box|shop|gift)_[A-Za-z0-9_-]{1,200}$/;
+const PACKING_COLLECTION = "packingPackages";
+const PACKAGE_ID = /^(box|shop|gift|comp)_[A-Za-z0-9_-]{1,200}$/;
 
 /** Box sizes in inches. Default for box orders and gifts is 14×14×6; 10×8×6 is for shop orders only; 14×14×12 is picked by hand when flagged. */
 export const PACKING_SIZES = {
-  '14x14x6': { label: '14 × 14 × 6 in' },
-  '14x14x12': { label: '14 × 14 × 12 in' },
-  '10x8x6': { label: '10 × 8 × 6 in' },
+  "14x14x6": { label: "14 × 14 × 6 in" },
+  "14x14x12": { label: "14 × 14 × 12 in" },
+  "10x8x6": { label: "10 × 8 × 6 in" },
 } as const;
 export type PackingSize = keyof typeof PACKING_SIZES;
 const PACKING_SIZE_KEYS = Object.keys(PACKING_SIZES) as PackingSize[];
 
-export type PackingKind = 'box' | 'shop' | 'gift';
+export type PackingKind = "box" | "shop" | "gift" | "comp";
 
 export type PackingAddress = {
   name: string | null;
@@ -118,12 +126,15 @@ type ItemMeta = {
 /** '3 lb' → 48, '6 oz' → 6. Null when the catalog weight is blank or not a number. */
 export function parseWeightOunces(raw: string | null): number | null {
   if (!raw) return null;
-  const match = raw.trim().toLowerCase().match(/(\d+(?:\.\d+)?)\s*(lb|lbs|pound|pounds|oz|ounce|ounces)?/);
+  const match = raw
+    .trim()
+    .toLowerCase()
+    .match(/(\d+(?:\.\d+)?)\s*(lb|lbs|pound|pounds|oz|ounce|ounces)?/);
   if (!match) return null;
   const n = Number(match[1]);
   if (!Number.isFinite(n) || n < 0) return null;
-  const unit = match[2] ?? '';
-  if (unit.startsWith('lb') || unit.startsWith('pound')) return n * 16;
+  const unit = match[2] ?? "";
+  if (unit.startsWith("lb") || unit.startsWith("pound")) return n * 16;
   return n;
 }
 
@@ -131,22 +142,26 @@ export function parseWeightOunces(raw: string | null): number | null {
  * Ounces for an item Airtable did not weigh. Books are the usual gap: a children's hardcover
  * is about 12 oz. Other gaps use a category guess so a box total still includes them.
  */
-export function estimateWeightOunces(item: { category: string | null; name: string; itemId: string | null }): number {
-  const cat = (item.category ?? '').toLowerCase();
+export function estimateWeightOunces(item: {
+  category: string | null;
+  name: string;
+  itemId: string | null;
+}): number {
+  const cat = (item.category ?? "").toLowerCase();
   const name = item.name.toLowerCase();
-  const id = (item.itemId ?? '').toLowerCase();
-  if (cat === 'book' || id.startsWith('book-')) return 12;
-  if (cat === 'dreidel') return name.includes('brass') ? 8 : 2;
-  if (cat === 'menorah') return 24;
-  if (cat === 'candles') return 8;
-  if (cat === 'gelt') {
-    if (name.includes('party')) return 32;
-    if (name.includes('big bag')) return 12;
+  const id = (item.itemId ?? "").toLowerCase();
+  if (cat === "book" || id.startsWith("book-")) return 12;
+  if (cat === "dreidel") return name.includes("brass") ? 8 : 2;
+  if (cat === "menorah") return 24;
+  if (cat === "candles") return 8;
+  if (cat === "gelt") {
+    if (name.includes("party")) return 32;
+    if (name.includes("big bag")) return 12;
     return 4;
   }
-  if (cat === 'food') return 16;
-  if (cat === 'stuffies') return 6;
-  if (cat === 'toys') return 12;
+  if (cat === "food") return 16;
+  if (cat === "stuffies") return 6;
+  if (cat === "toys") return 12;
   return 8;
 }
 
@@ -163,22 +178,32 @@ export function weightForLine(item: {
 
 function categoryOf(itemId: string | null, meta: ItemMeta | undefined): string {
   if (meta?.category) return meta.category;
-  if (itemId?.startsWith('book-')) return 'Book';
-  return 'Other';
+  if (itemId?.startsWith("book-")) return "Book";
+  return "Other";
 }
 type ChildInfo = { name: string | null; age: string | null };
-type UserInfo = { email: string | null; name: string | null; last: Record<string, unknown> };
+type UserInfo = {
+  email: string | null;
+  name: string | null;
+  last: Record<string, unknown>;
+};
 
-const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
-const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const str = (v: unknown): string | null =>
+  typeof v === "string" && v.trim() ? v.trim() : null;
+const num = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null;
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === "object" && !Array.isArray(v);
 const strList = (v: unknown): string[] =>
-  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.length > 0) : [];
+  Array.isArray(v)
+    ? v.filter((x): x is string => typeof x === "string" && x.length > 0)
+    : [];
 
 function iso(v: unknown): string | null {
   if (!v) return null;
-  if (typeof v === 'string') return v;
-  if (typeof (v as { toDate?: unknown }).toDate === 'function') return (v as { toDate: () => Date }).toDate().toISOString();
+  if (typeof v === "string") return v;
+  if (typeof (v as { toDate?: unknown }).toDate === "function")
+    return (v as { toDate: () => Date }).toDate().toISOString();
   return null;
 }
 
@@ -190,8 +215,10 @@ function score(v: unknown): number | null {
 /** Largest of the first three numbers before any parenthetical: '6.3" h × 5.1" w × 1.4" d' → 6.3. */
 export function maxDimensionInches(raw: string | null): number | null {
   if (!raw) return null;
-  const main = raw.split('(')[0];
-  const nums = [...main.matchAll(/\d+(?:\.\d+)?/g)].map((m) => Number(m[0])).slice(0, 3);
+  const main = raw.split("(")[0];
+  const nums = [...main.matchAll(/\d+(?:\.\d+)?/g)]
+    .map((m) => Number(m[0]))
+    .slice(0, 3);
   return nums.length ? Math.max(...nums) : null;
 }
 
@@ -203,16 +230,16 @@ function addressOf(raw: unknown): PackingAddress | null {
     name: str(raw.name),
     line1,
     line2: str(raw.line2),
-    city: str(raw.city) ?? '',
-    stateProvince: str(raw.stateProvince) ?? '',
-    postalCode: str(raw.postalCode) ?? '',
+    city: str(raw.city) ?? "",
+    stateProvince: str(raw.stateProvince) ?? "",
+    postalCode: str(raw.postalCode) ?? "",
     country: str(raw.country),
   };
 }
 
-/** Recommended box: shop orders use 10×8×6; boxes and gifts use 14×14×6. Packers pick a bigger box from the flag. */
+/** Recommended box: shop orders use 10×8×6; boxes, gifts and comps use 14×14×6. Packers pick a bigger box from the flag. */
 export function recommendedSizeFor(kind: PackingKind): PackingSize {
-  return kind === 'shop' ? '10x8x6' : '14x14x6';
+  return kind === "shop" ? "10x8x6" : "14x14x6";
 }
 
 /** An item longer than this (inches, largest dimension) can't fit a 10×8×6 or 14×14×6 box lying flat. */
@@ -226,7 +253,10 @@ export const LARGE_BOX_UNITS = 18;
 /** Flag for the packer: an item is too long for the box, or the package holds a lot of units. */
 export function mayNeedLargeBox(lines: PackingLine[]): boolean {
   const units = lines.reduce((sum, l) => sum + l.qty, 0);
-  return units > LARGE_BOX_UNITS || lines.some((l) => (l.maxInches ?? 0) > LARGE_BOX_ITEM_INCHES);
+  return (
+    units > LARGE_BOX_UNITS ||
+    lines.some((l) => (l.maxInches ?? 0) > LARGE_BOX_ITEM_INCHES)
+  );
 }
 
 function buildLines(args: {
@@ -239,16 +269,21 @@ function buildLines(args: {
   const seen = new Map<string, number>();
   const out: PackingLine[] = [];
   for (const raw of Array.isArray(args.raw) ? args.raw : []) {
-    if (!raw || typeof raw !== 'object') continue;
+    if (!raw || typeof raw !== "object") continue;
     const li = raw as DocumentData;
     const qty = Math.max(0, Math.floor(Number(li.quantity) || 0));
     if (qty <= 0) continue;
     const itemId = str(li.itemId);
     const childId = str(li.childId);
     const meta = itemId ? args.items.get(itemId) : undefined;
-    const name = meta?.name ?? str(li.label) ?? itemId ?? '?';
-    const weight = weightForLine({ weight: meta?.weight ?? null, category: meta?.category ?? null, name, itemId });
-    const base = `${itemId ?? str(li.label) ?? '?'}|${childId ?? 'household'}`;
+    const name = meta?.name ?? str(li.label) ?? itemId ?? "?";
+    const weight = weightForLine({
+      weight: meta?.weight ?? null,
+      category: meta?.category ?? null,
+      name,
+      itemId,
+    });
+    const base = `${itemId ?? str(li.label) ?? "?"}|${childId ?? "household"}`;
     const n = seen.get(base) ?? 0;
     seen.set(base, n + 1);
     out.push({
@@ -256,7 +291,7 @@ function buildLines(args: {
       itemId,
       name,
       qty,
-      child: childId ? args.childName(childId) ?? 'Child' : null,
+      child: childId ? (args.childName(childId) ?? "Child") : null,
       forHousehold: !childId,
       origin: lineOriginVsDefault(li, args.defaults),
       wrap: Boolean(itemId && args.wrap.has(itemId)),
@@ -273,17 +308,31 @@ function buildLines(args: {
 
 const emptySliders = { hanukkah: null, jewish: null };
 
-async function getAllSafe(db: Firestore, refs: DocumentReference[]): Promise<Array<{ id: string; data: () => DocumentData | undefined }>> {
+async function getAllSafe(
+  db: Firestore,
+  refs: DocumentReference[],
+): Promise<Array<{ id: string; data: () => DocumentData | undefined }>> {
   return refs.length ? db.getAll(...refs) : [];
 }
 
-export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): Promise<AdminPackingList> {
-  const [ordersSnap, invitesSnap, receivedSnap, itemsSnap, childrenSnap] = await Promise.all([
-    db.collectionGroup('orders').get(),
-    db.collection('giftInvites').get(),
-    db.collectionGroup('receivedGifts').get(),
-    db.collection('catalog/hanukkah/items').get(),
-    db.collectionGroup('children').get(),
+export async function buildAdminPackingList(
+  db: Firestore,
+  nowMs = Date.now(),
+): Promise<AdminPackingList> {
+  const [
+    ordersSnap,
+    invitesSnap,
+    receivedSnap,
+    itemsSnap,
+    childrenSnap,
+    compSnap,
+  ] = await Promise.all([
+    db.collectionGroup("orders").get(),
+    db.collection("giftInvites").get(),
+    db.collectionGroup("receivedGifts").get(),
+    db.collection("catalog/hanukkah/items").get(),
+    db.collectionGroup("children").get(),
+    db.collection("complimentaryPeople").get(),
   ]);
 
   const items = new Map<string, ItemMeta>();
@@ -303,10 +352,10 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
   const childrenByOwner = new Map<string, ChildInfo[]>();
   for (const d of childrenSnap.docs) {
     const owner = d.ref.parent.parent;
-    if (!owner || owner.parent.id !== 'users') continue;
+    if (!owner || owner.parent.id !== "users") continue;
     const x = d.data();
     const age =
-      typeof x.plannerAge === 'number' && Number.isFinite(x.plannerAge)
+      typeof x.plannerAge === "number" && Number.isFinite(x.plannerAge)
         ? String(Math.max(0, Math.floor(x.plannerAge)))
         : str(x.ageGroup);
     const info: ChildInfo = { name: str(x.name), age };
@@ -320,46 +369,83 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
   const receivedByKey = new Map<string, DocumentData>();
   for (const d of receivedSnap.docs) {
     const hh = d.ref.parent.parent;
-    if (hh && hh.parent.id === 'households') receivedByKey.set(`${hh.id}/${d.id}`, d.data());
+    if (hh && hh.parent.id === "households")
+      receivedByKey.set(`${hh.id}/${d.id}`, d.data());
   }
 
-  type OrderRow = { hid: string; id: string; o: DocumentData; awaitingPayment?: boolean };
+  type OrderRow = {
+    hid: string;
+    id: string;
+    o: DocumentData;
+    awaitingPayment?: boolean;
+  };
   const boxRows: OrderRow[] = [];
   const shopRows: OrderRow[] = [];
   const liveGiftOrderByInvite = new Map<string, DocumentData>();
   for (const d of ordersSnap.docs) {
     const o = d.data();
-    const hid = d.ref.parent.parent?.id ?? '';
+    const hid = d.ref.parent.parent?.id ?? "";
     if (!hid || o.playthrough === true) continue;
-    if (o.orderType === 'received_gift') {
+    if (o.orderType === "received_gift") {
       const inviteId = str(o.giftInviteId);
-      if (inviteId && o.holidayId === HOLIDAY_ID && packingBoxCharge(o.status) === 'charged') {
+      if (
+        inviteId &&
+        o.holidayId === HOLIDAY_ID &&
+        packingBoxCharge(o.status) === "charged"
+      ) {
         liveGiftOrderByInvite.set(inviteId, o);
       }
       continue;
     }
-    if (o.orderType === 'marketplace') {
+    if (o.orderType === "marketplace") {
       // Paid, not cancelled or fully refunded (a cancelled order with a confirmed date still shows as paid elsewhere).
       const state = shopOrderState(o);
-      if (state.paid && state.status !== 'refunded' && state.status !== 'cancelled') shopRows.push({ hid, id: d.id, o });
+      if (
+        state.paid &&
+        state.status !== "refunded" &&
+        state.status !== "cancelled"
+      )
+        shopRows.push({ hid, id: d.id, o });
       continue;
     }
-    const isBox = o.orderType === 'hanukkah_box' || (!o.orderType && o.holidayId === HOLIDAY_ID);
+    const isBox =
+      o.orderType === "hanukkah_box" ||
+      (!o.orderType && o.holidayId === HOLIDAY_ID);
     const charge = packingBoxCharge(o.status);
-    if (isBox && o.holidayId === HOLIDAY_ID && charge !== 'hidden') {
-      boxRows.push({ hid, id: d.id, o, awaitingPayment: charge === 'awaiting' });
+    if (isBox && o.holidayId === HOLIDAY_ID && charge !== "hidden") {
+      boxRows.push({
+        hid,
+        id: d.id,
+        o,
+        awaitingPayment: charge === "awaiting",
+      });
     }
   }
 
   // Per-household reads for the paid boxes: household (owner fallback), draft (wrap fallback), default build.
   const boxHids = [...new Set(boxRows.map((r) => r.hid))];
   const [hhSnaps, draftSnaps, histSnaps] = await Promise.all([
-    getAllSafe(db, boxHids.map((hid) => db.doc(`households/${hid}`))),
-    getAllSafe(db, boxHids.map((hid) => db.doc(`households/${hid}/boxDrafts/${HOLIDAY_ID}`))),
-    getAllSafe(db, boxHids.map((hid) => db.doc(`households/${hid}/boxDrafts/${HOLIDAY_ID}/history/default`))),
+    getAllSafe(
+      db,
+      boxHids.map((hid) => db.doc(`households/${hid}`)),
+    ),
+    getAllSafe(
+      db,
+      boxHids.map((hid) => db.doc(`households/${hid}/boxDrafts/${HOLIDAY_ID}`)),
+    ),
+    getAllSafe(
+      db,
+      boxHids.map((hid) =>
+        db.doc(`households/${hid}/boxDrafts/${HOLIDAY_ID}/history/default`),
+      ),
+    ),
   ]);
-  const householdById = new Map<string, DocumentData>(hhSnaps.map((s) => [s.id, s.data() ?? {}]));
-  const draftByHid = new Map<string, DocumentData>(boxHids.map((hid, i) => [hid, draftSnaps[i]?.data() ?? {}]));
+  const householdById = new Map<string, DocumentData>(
+    hhSnaps.map((s) => [s.id, s.data() ?? {}]),
+  );
+  const draftByHid = new Map<string, DocumentData>(
+    boxHids.map((hid, i) => [hid, draftSnaps[i]?.data() ?? {}]),
+  );
   const defaultsByHid = new Map<string, HistoryLine[] | null>(
     boxHids.map((hid, i) => {
       const def = histSnaps[i]?.data()?.box;
@@ -378,7 +464,10 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
     const uid = str(r.o.userId);
     if (uid) userIds.add(uid);
   }
-  const userSnaps = await getAllSafe(db, [...userIds].map((uid) => db.doc(`users/${uid}`)));
+  const userSnaps = await getAllSafe(
+    db,
+    [...userIds].map((uid) => db.doc(`users/${uid}`)),
+  );
   const usersById = new Map<string, UserInfo>();
   for (const s of userSnaps) {
     const x = s.data() ?? {};
@@ -389,15 +478,21 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
     });
   }
 
-  const packages: Array<Omit<PackingPackage, 'size' | 'sizeSet' | 'mayNeedLargeBox'>> = [];
+  const packages: Array<
+    Omit<PackingPackage, "size" | "sizeSet" | "mayNeedLargeBox">
+  > = [];
 
   for (const r of boxRows) {
     const hh = householdById.get(r.hid) ?? {};
     const uid = str(r.o.userId) ?? str(hh.ownerId);
     const user = uid ? usersById.get(uid) : undefined;
     const last = user?.last ?? {};
-    const wrap = new Set(strList(r.o.wrapSelectedItemIds ?? draftByHid.get(r.hid)?.wrapSelectedItemIds));
-    const kids = uid ? childrenByOwner.get(uid) ?? [] : [];
+    const wrap = new Set(
+      strList(
+        r.o.wrapSelectedItemIds ?? draftByHid.get(r.hid)?.wrapSelectedItemIds,
+      ),
+    );
+    const kids = uid ? (childrenByOwner.get(uid) ?? []) : [];
     const shipping = addressOf(r.o.shippingAddress);
     const lines = buildLines({
       raw: r.o.lineItems,
@@ -408,13 +503,18 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
     });
     packages.push({
       id: `box_${r.hid}_${r.id}`,
-      kind: 'box',
-      status: str(r.o.status) ?? 'unknown',
+      kind: "box",
+      status: str(r.o.status) ?? "unknown",
       reference: `Order ${r.id.slice(0, 8).toUpperCase()}`,
       recipient: shipping?.name ?? user?.name ?? null,
       email: str(r.o.guestEmail) ?? user?.email ?? null,
-      test: isTest(str(r.o.guestEmail) ?? user?.email, user?.name, shipping?.name),
-      paidAt: iso(r.o.confirmedAt) ?? iso(r.o.committedAt) ?? iso(r.o.createdAt),
+      test: isTest(
+        str(r.o.guestEmail) ?? user?.email,
+        user?.name,
+        shipping?.name,
+      ),
+      paidAt:
+        iso(r.o.confirmedAt) ?? iso(r.o.committedAt) ?? iso(r.o.createdAt),
       destination: shipping,
       kids: kids.map((k) => ({ name: k.name, age: k.age })),
       sliders: {
@@ -422,7 +522,7 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
         jewish: score(last.practiceFrequencyScore),
       },
       note: str(last.ravNotes) ?? null,
-      recommendedSize: '14x14x6',
+      recommendedSize: "14x14x6",
       awaitingPayment: r.awaitingPayment === true,
       lines,
     });
@@ -431,20 +531,37 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
   for (const d of invitesSnap.docs) {
     const g = d.data();
     const isBox =
-      g.kind === 'box' || g.kind === 'credit' ? g.kind === 'box' : Array.isArray(g.lineItems) && g.lineItems.length > 0;
-    if (!isBox || g.playthrough === true || g.status === 'converted_to_credit') continue;
-    const paid = g.paymentStatus === 'paid' || (g.paymentStatus == null && Boolean(g.claimEmailSentAt));
+      g.kind === "box" || g.kind === "credit"
+        ? g.kind === "box"
+        : Array.isArray(g.lineItems) && g.lineItems.length > 0;
+    if (!isBox || g.playthrough === true || g.status === "converted_to_credit")
+      continue;
+    const paid =
+      g.paymentStatus === "paid" ||
+      (g.paymentStatus == null && Boolean(g.claimEmailSentAt));
     if (!paid) continue;
 
     const claimedHid = str(g.claimedByHouseholdId);
-    const rec = claimedHid ? receivedByKey.get(`${claimedHid}/${d.id}`) : undefined;
+    const rec = claimedHid
+      ? receivedByKey.get(`${claimedHid}/${d.id}`)
+      : undefined;
     const liveOrder = liveGiftOrderByInvite.get(d.id);
-    const shipping = addressOf(liveOrder?.shippingAddress) ?? addressOf(g.shippingAddress);
+    const shipping =
+      addressOf(liveOrder?.shippingAddress) ?? addressOf(g.shippingAddress);
     // Ship only when there is an address; QA gifts without one are skipped.
     if (!shipping) continue;
 
-    const rawLines = liveOrder && Array.isArray(liveOrder.lineItems) ? liveOrder.lineItems : rec?.lineItems ?? g.lineItems;
-    const wrap = new Set(strList(liveOrder?.wrapSelectedItemIds ?? rec?.wrapSelectedItemIds ?? g.wrapSelectedItemIds));
+    const rawLines =
+      liveOrder && Array.isArray(liveOrder.lineItems)
+        ? liveOrder.lineItems
+        : (rec?.lineItems ?? g.lineItems);
+    const wrap = new Set(
+      strList(
+        liveOrder?.wrapSelectedItemIds ??
+          rec?.wrapSelectedItemIds ??
+          g.wrapSelectedItemIds,
+      ),
+    );
     const lines = buildLines({
       raw: rawLines,
       items,
@@ -452,30 +569,38 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
       defaults: null,
       wrap,
     });
-    const giver = str(g.giverName) ?? str(g.giverEmail) ?? 'a giver';
+    const giver = str(g.giverName) ?? str(g.giverEmail) ?? "a giver";
     packages.push({
       id: `gift_${d.id}`,
-      kind: 'gift',
-      status: str(g.status) ?? 'unknown',
+      kind: "gift",
+      status: str(g.status) ?? "unknown",
       reference: `Gift from ${giver}`,
       recipient: shipping.name ?? str(g.recipientName) ?? str(g.recipientEmail),
       email: str(g.recipientEmail),
-      test: isTest(str(g.giverEmail), str(g.giverName), str(g.recipientEmail), shipping.name),
+      test: isTest(
+        str(g.giverEmail),
+        str(g.giverName),
+        str(g.recipientEmail),
+        shipping.name,
+      ),
       paidAt: iso(g.claimEmailSentAt) ?? iso(g.createdAt),
       destination: shipping,
       kids: [],
       sliders: emptySliders,
       note: str(g.message),
-      recommendedSize: '14x14x6',
+      recommendedSize: "14x14x6",
       awaitingPayment: false,
       lines,
     });
   }
 
   for (const r of shopRows) {
-    const user = str(r.o.userId) ? usersById.get(str(r.o.userId) as string) : undefined;
+    const user = str(r.o.userId)
+      ? usersById.get(str(r.o.userId) as string)
+      : undefined;
     const shipping = addressOf(r.o.shippingAddress);
-    const email = str(r.o.guestEmail) ?? user?.email ?? str(r.o.shippingAddress?.email);
+    const email =
+      str(r.o.guestEmail) ?? user?.email ?? str(r.o.shippingAddress?.email);
     const lines = buildLines({
       raw: r.o.lineItems,
       items,
@@ -485,7 +610,7 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
     });
     packages.push({
       id: `shop_${r.hid}_${r.id}`,
-      kind: 'shop',
+      kind: "shop",
       status: shopOrderState(r.o).status,
       reference: `Order ${r.id.slice(0, 8).toUpperCase()}`,
       recipient: shipping?.name ?? user?.name ?? null,
@@ -496,7 +621,58 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
       kids: [],
       sliders: emptySliders,
       note: null,
-      recommendedSize: recommendedSizeFor('shop'),
+      recommendedSize: recommendedSizeFor("shop"),
+      awaitingPayment: false,
+      lines,
+    });
+  }
+
+  for (const d of compSnap.docs) {
+    const p = d.data();
+    const lines = buildLines({
+      raw: p.lineItems,
+      items,
+      childName: () => null,
+      defaults: null,
+      wrap: new Set(),
+    });
+    if (!lines.length) continue;
+    const shipping = addressOf(p.shippingAddress);
+    const name = str(p.name);
+    const email = isRecord(p.shippingAddress)
+      ? str(p.shippingAddress.email)
+      : null;
+    const labeled = typeof p.shipStationExportedAt === "string";
+    const failed =
+      typeof p.shipStationError === "string" &&
+      p.shipStationError.length > 0 &&
+      !labeled;
+    const handDeliver = p.handDeliver === true;
+    const canada = p.canada === true || shipping?.country === "CA";
+    packages.push({
+      id: `comp_${d.id}`,
+      kind: "comp",
+      status: handDeliver
+        ? "hand deliver"
+        : canada
+          ? "Canada, no label"
+          : labeled
+            ? "labeled"
+            : failed
+              ? "label failed"
+              : shipping
+                ? "ready"
+                : "needs address",
+      reference: "Complimentary",
+      recipient: shipping?.name ?? name,
+      email,
+      test: isTest(email, name, shipping?.name),
+      paidAt: iso(p.createdAt),
+      destination: shipping,
+      kids: [],
+      sliders: emptySliders,
+      note: null,
+      recommendedSize: recommendedSizeFor("comp"),
       awaitingPayment: false,
       lines,
     });
@@ -507,15 +683,22 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
     db,
     packages.map((p) => db.doc(`${PACKING_COLLECTION}/${p.id}`)),
   );
-  const storedById = new Map<string, DocumentData>(stored.map((s) => [s.id, s.data() ?? {}]));
+  const storedById = new Map<string, DocumentData>(
+    stored.map((s) => [s.id, s.data() ?? {}]),
+  );
 
   const out: PackingPackage[] = packages.map((p) => {
     const state = storedById.get(p.id) ?? {};
     const packedMap = isRecord(state.packed) ? state.packed : {};
-    const picked = typeof state.size === 'string' && (PACKING_SIZE_KEYS as string[]).includes(state.size)
-      ? (state.size as PackingSize)
-      : null;
-    const lines = p.lines.map((l) => ({ ...l, packed: packedMap[l.key] === true }));
+    const picked =
+      typeof state.size === "string" &&
+      (PACKING_SIZE_KEYS as string[]).includes(state.size)
+        ? (state.size as PackingSize)
+        : null;
+    const lines = p.lines.map((l) => ({
+      ...l,
+      packed: packedMap[l.key] === true,
+    }));
     return {
       ...p,
       lines,
@@ -525,51 +708,75 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
     };
   });
 
-  out.sort((a, b) => (a.paidAt ?? '').localeCompare(b.paidAt ?? ''));
+  out.sort((a, b) => (a.paidAt ?? "").localeCompare(b.paidAt ?? ""));
 
   return { generatedAt: new Date(nowMs).toISOString(), packages: out };
 }
 
 const PACKING_CALL_OPTS = {
   timeoutSeconds: 300,
-  memory: '1GiB' as const,
+  memory: "1GiB" as const,
 };
 
 export function createAdminPacking(db: Firestore) {
-  const getAdminPacking = onCall(PACKING_CALL_OPTS, async (request): Promise<AdminPackingList> => {
-    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Must be signed in.');
-    if (!isAdminToken(request.auth.token)) throw new HttpsError('permission-denied', 'Admin only.');
-    return buildAdminPackingList(db);
-  });
+  const getAdminPacking = onCall(
+    PACKING_CALL_OPTS,
+    async (request): Promise<AdminPackingList> => {
+      if (!request.auth?.uid)
+        throw new HttpsError("unauthenticated", "Must be signed in.");
+      if (!isAdminToken(request.auth.token))
+        throw new HttpsError("permission-denied", "Admin only.");
+      return buildAdminPackingList(db);
+    },
+  );
 
   /** Set a line's packed flag, or a package's box size. Shared across admins. */
-  const setAdminPackingState = onCall(PACKING_CALL_OPTS, async (request): Promise<{ ok: true }> => {
-    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Must be signed in.');
-    if (!isAdminToken(request.auth.token)) throw new HttpsError('permission-denied', 'Admin only.');
-    const data = (request.data ?? {}) as { packageId?: unknown; lineKey?: unknown; packed?: unknown; size?: unknown };
-    const packageId = typeof data.packageId === 'string' ? data.packageId : '';
-    if (!PACKAGE_ID.test(packageId)) throw new HttpsError('invalid-argument', 'Unknown package.');
+  const setAdminPackingState = onCall(
+    PACKING_CALL_OPTS,
+    async (request): Promise<{ ok: true }> => {
+      if (!request.auth?.uid)
+        throw new HttpsError("unauthenticated", "Must be signed in.");
+      if (!isAdminToken(request.auth.token))
+        throw new HttpsError("permission-denied", "Admin only.");
+      const data = (request.data ?? {}) as {
+        packageId?: unknown;
+        lineKey?: unknown;
+        packed?: unknown;
+        size?: unknown;
+      };
+      const packageId =
+        typeof data.packageId === "string" ? data.packageId : "";
+      if (!PACKAGE_ID.test(packageId))
+        throw new HttpsError("invalid-argument", "Unknown package.");
 
-    const update: Record<string, unknown> = {
-      updatedAt: FieldValue.serverTimestamp(),
-      updatedBy: request.auth.token.email ?? request.auth.uid,
-    };
-    const lineKey = typeof data.lineKey === 'string' ? data.lineKey : '';
-    if (lineKey) {
-      if (lineKey.length > 300) throw new HttpsError('invalid-argument', 'Line key too long.');
-      update.packed = { [lineKey]: data.packed === true };
-    }
-    if (data.size !== undefined) {
-      if (typeof data.size !== 'string' || !(PACKING_SIZE_KEYS as string[]).includes(data.size)) {
-        throw new HttpsError('invalid-argument', 'Unknown box size.');
+      const update: Record<string, unknown> = {
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: request.auth.token.email ?? request.auth.uid,
+      };
+      const lineKey = typeof data.lineKey === "string" ? data.lineKey : "";
+      if (lineKey) {
+        if (lineKey.length > 300)
+          throw new HttpsError("invalid-argument", "Line key too long.");
+        update.packed = { [lineKey]: data.packed === true };
       }
-      update.size = data.size;
-    }
-    if (!lineKey && data.size === undefined) throw new HttpsError('invalid-argument', 'Nothing to update.');
+      if (data.size !== undefined) {
+        if (
+          typeof data.size !== "string" ||
+          !(PACKING_SIZE_KEYS as string[]).includes(data.size)
+        ) {
+          throw new HttpsError("invalid-argument", "Unknown box size.");
+        }
+        update.size = data.size;
+      }
+      if (!lineKey && data.size === undefined)
+        throw new HttpsError("invalid-argument", "Nothing to update.");
 
-    await db.doc(`${PACKING_COLLECTION}/${packageId}`).set(update, { merge: true });
-    return { ok: true };
-  });
+      await db
+        .doc(`${PACKING_COLLECTION}/${packageId}`)
+        .set(update, { merge: true });
+      return { ok: true };
+    },
+  );
 
   return { getAdminPacking, setAdminPackingState };
 }
