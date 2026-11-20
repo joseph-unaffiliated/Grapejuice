@@ -536,7 +536,7 @@ async function fulfillMarketplaceOrder(
     return;
   }
   try {
-    await exportOrderToShipStation({
+    const exported = await exportOrderToShipStation({
       orderId,
       householdId,
       shippingAddress: (fresh.shippingAddress as Record<string, unknown>) ?? {},
@@ -544,7 +544,13 @@ async function fulfillMarketplaceOrder(
       totalCents: (fresh.totalCents as number) ?? 0,
       customerEmail: email.includes('@') ? email : undefined,
     });
-    await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
+    // A skipped export (no keys, incomplete address) must stay unlabeled so the hourly
+    // job retries. Marking it fulfilled here is what left gift orders with no label.
+    if (exported.exported) {
+      await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
+    } else {
+      logger.warn('ShipStation export skipped; will retry', { orderId, householdId });
+    }
   } catch (shipErr) {
     logger.error('Marketplace ShipStation export failed', shipErr);
   }

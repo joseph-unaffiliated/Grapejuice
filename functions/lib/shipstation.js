@@ -5,6 +5,7 @@ exports.parseCatalogWeightOunces = parseCatalogWeightOunces;
 exports.exportOrderToShipStation = exportOrderToShipStation;
 exports.applyShipStationTracking = applyShipStationTracking;
 exports.processShipStationShipNotify = processShipStationShipNotify;
+exports.isSplitFollowUpKey = isSplitFollowUpKey;
 exports.verifyShipStationWebhookSecret = verifyShipStationWebhookSecret;
 const logger = require("./logger");
 const firestore_1 = require("firebase-admin/firestore");
@@ -286,7 +287,7 @@ async function fetchShipStationOrder(shipStationOrderId) {
 async function resolveHouseholdForShipment(db, shipment) {
     var _a, _b, _c, _d, _e;
     const orderId = String((_a = shipment.orderKey) !== null && _a !== void 0 ? _a : '').trim();
-    if (!orderId)
+    if (!orderId || isSplitFollowUpKey(orderId))
         return null;
     const indexSnap = await db.doc(`shipStationOrders/${orderId}`).get();
     if (indexSnap.exists) {
@@ -323,7 +324,7 @@ async function resolveHouseholdForFulfillment(db, fulfillment) {
     const ssOrder = await fetchShipStationOrder(fulfillment.orderId);
     const orderId = String((_a = ssOrder === null || ssOrder === void 0 ? void 0 : ssOrder.orderKey) !== null && _a !== void 0 ? _a : '').trim();
     const householdId = String((_b = ssOrder === null || ssOrder === void 0 ? void 0 : ssOrder.customerUsername) !== null && _b !== void 0 ? _b : '').trim();
-    if (!orderId || !householdId)
+    if (!orderId || !householdId || isSplitFollowUpKey(orderId))
         return null;
     try {
         await writeShipStationIndex({
@@ -355,6 +356,9 @@ async function processShipStationShipNotify(db, body) {
         const trackingNumber = String((_c = body.trackingNumber) !== null && _c !== void 0 ? _c : '').trim();
         if (!orderId || !trackingNumber) {
             throw new Error('simulate requires orderKey (Firestore order id) and trackingNumber');
+        }
+        if (isSplitFollowUpKey(orderId)) {
+            throw new Error('simulate: split follow-up keys (containing __) are not Grapejuice orders');
         }
         let householdId = String((_d = body.householdId) !== null && _d !== void 0 ? _d : '').trim();
         if (!householdId) {
@@ -420,13 +424,22 @@ async function processShipStationShipNotify(db, body) {
     return { processed, skipped };
 }
 async function applyTrackingEvent(db, event, kind) {
-    var _a, _b;
+    var _a, _b, _c;
     if (event.voided)
         return 'skipped';
     const trackingNumber = String((_a = event.trackingNumber) !== null && _a !== void 0 ? _a : '').trim();
     if (!trackingNumber)
         return 'skipped';
-    const resolved = kind === 'shipment' && 'orderKey' in event && String((_b = event.orderKey) !== null && _b !== void 0 ? _b : '').trim()
+    const eventKey = 'orderKey' in event ? String((_b = event.orderKey) !== null && _b !== void 0 ? _b : '').trim() : '';
+    if (eventKey && isSplitFollowUpKey(eventKey)) {
+        logger.info('ShipStation split follow-up shipment ignored', {
+            kind,
+            orderKey: eventKey,
+            orderNumber: event.orderNumber,
+        });
+        return 'skipped';
+    }
+    const resolved = kind === 'shipment' && 'orderKey' in event && String((_c = event.orderKey) !== null && _c !== void 0 ? _c : '').trim()
         ? await resolveHouseholdForShipment(db, event)
         : await resolveHouseholdForFulfillment(db, event);
     if (!resolved) {
@@ -461,6 +474,13 @@ async function applyTrackingEvent(db, event, kind) {
         });
         return 'skipped';
     }
+}
+/**
+ * Delayed-item follow-ups use `{orderKey}__delayed`. They are separate labels for the same box.
+ * Their shipments must not write tracking or send email on the box, so the webhook ignores them.
+ */
+function isSplitFollowUpKey(orderKey) {
+    return orderKey.includes('__');
 }
 /** True when request carries the shared webhook secret (if configured). */
 function verifyShipStationWebhookSecret(req) {

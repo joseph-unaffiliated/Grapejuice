@@ -7,7 +7,8 @@
  *
  * Writes ~/Downloads/Grapejuice packing slips.pdf. Prints only with --print-first or --print.
  * Includes Hanukkah boxes, gifts, shop orders, and complimentary boxes.
- * Test accounts are left out.
+ * Test accounts are left out. Delayed items (toddler menorah, brass dreidel, slipcast dreidel)
+ * are not packed here. The slip says they ship separately.
  */
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
@@ -16,6 +17,7 @@ import { dirname, join } from "node:path";
 import { createWriteStream } from "node:fs";
 import { homedir } from "node:os";
 import { firestoreFromFirebaseCliLogin } from "./lib/firebaseCliCredential.mjs";
+import { isDelayedItemId } from "./lib/delayedItems.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -54,6 +56,7 @@ const KIDS_SIZE = 8;
 const TITLE_SIZE = 7.5;
 const ROW_SIZE = 8;
 const META_SIZE = 7;
+const NOTE_SIZE = 8;
 
 // Spacing (pt). Rows get ROW_GAP; a new section gets SECTION_GAP on top of that.
 const HEADER_TOP = 14;
@@ -136,10 +139,10 @@ function kidsLine(pkg) {
     .join("   ");
 }
 
-function groups(pkg) {
+function groups(pkg, lines) {
   const household = [];
   const byChild = new Map();
-  for (const line of pkg.lines) {
+  for (const line of lines) {
     if (!line.child) household.push(line);
     else {
       const key = clean(line.child) || "Child";
@@ -164,9 +167,29 @@ function groups(pkg) {
   return out;
 }
 
+/**
+ * A delayed line leaves the box only when a ShipStation order will split it: Hanukkah boxes,
+ * and gifts that already have a ShipStation order. Comps, shop orders, and unlabeled gifts pack as usual.
+ */
+function isSplitLine(pkg, line) {
+  if (!isDelayedItemId(line.itemId)) return false;
+  if (pkg.kind === "box") return true;
+  if (pkg.kind === "gift" && pkg.labeled) return true;
+  return false;
+}
+
 function blocksFor(pkg) {
   const blocks = [];
-  for (const group of groups(pkg)) {
+  const delayed = pkg.lines.filter((line) => isSplitLine(pkg, line));
+  const packable = pkg.lines.filter((line) => !isSplitLine(pkg, line));
+  if (delayed.length) {
+    const names = [...new Set(delayed.map((line) => clean(line.name)))].join(", ");
+    const text = packable.length
+      ? `Ships separately: ${names}`
+      : `On hold until delayed items arrive: ${names}`;
+    blocks.push({ kind: "note", text });
+  }
+  for (const group of groups(pkg, packable)) {
     if (group.title) blocks.push({ kind: "title", text: group.title });
     for (const line of group.lines) blocks.push({ kind: "item", line });
   }
@@ -231,6 +254,14 @@ function layoutHeader(doc, pkg, continued, draw) {
  * slip or page). Returns the y after the block.
  */
 function layoutBlock(doc, block, y, draw) {
+  if (block.kind === "note") {
+    y += block.before ?? 0;
+    font(doc, true, NOTE_SIZE);
+    const o = opts(NOTE_SIZE, { width: INNER });
+    const h = doc.heightOfString(block.text, o);
+    if (draw) doc.text(block.text, M, y, o);
+    return y + h + SECTION_GAP;
+  }
   if (block.kind === "title") {
     y += block.before ?? 0;
     if (draw) {
@@ -330,10 +361,11 @@ function rule(doc, y, weight) {
 function drawFooter(doc, pkg, pageIndex, pageCount) {
   const { textY, ruleY } = footerBox(doc);
   rule(doc, ruleY, 0.4);
-  const units = pkg.lines.reduce((sum, line) => sum + line.qty, 0);
+  const packed = pkg.lines.filter((line) => !isSplitLine(pkg, line));
+  const units = packed.reduce((sum, line) => sum + line.qty, 0);
   font(doc, false, FOOTER_SIZE);
   doc.fillColor("black");
-  doc.text(`${pkg.lines.length} lines · ${units} units`, M, textY, opts(FOOTER_SIZE, {
+  doc.text(`${packed.length} lines · ${units} units`, M, textY, opts(FOOTER_SIZE, {
     width: INNER * 0.72,
     lineBreak: false,
   }));
@@ -367,13 +399,38 @@ function sortKey(pkg) {
   return `${last}\t${rest}\t${pkg.id}`;
 }
 
+/** Gift invites whose received-gift order is already in ShipStation. */
+async function labeledGiftInviteIds(db) {
+  const [indexSnap, orderSnap] = await Promise.all([
+    db.collection("shipStationOrders").select().get(),
+    db.collectionGroup("orders").select("orderType", "giftInviteId").get(),
+  ]);
+  const exported = new Set(indexSnap.docs.map((doc) => doc.id));
+  const invites = new Set();
+  for (const doc of orderSnap.docs) {
+    if (!exported.has(doc.id)) continue;
+    if (doc.get("orderType") !== "received_gift") continue;
+    const inviteId = doc.get("giftInviteId");
+    if (inviteId) invites.add(inviteId);
+  }
+  return invites;
+}
+
 export async function loadPackages() {
   const db = firestoreFromFirebaseCliLogin("grapejuice-pilot");
   if (!db) throw new Error("Firebase CLI login is not available on this machine.");
-  const list = await buildAdminPackingList(db);
+  const [list, labeledGifts] = await Promise.all([
+    buildAdminPackingList(db),
+    labeledGiftInviteIds(db),
+  ]);
   const units = (pkg) => pkg.lines.reduce((sum, line) => sum + line.qty, 0);
   return list.packages
     .filter((pkg) => !pkg.test && !pkg.awaitingPayment)
+    .map((pkg) =>
+      pkg.kind === "gift" && labeledGifts.has(pkg.id.slice("gift_".length))
+        ? { ...pkg, labeled: true }
+        : pkg,
+    )
     .sort(
       (a, b) =>
         units(b) - units(a) ||

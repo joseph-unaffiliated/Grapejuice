@@ -370,7 +370,7 @@ async function resolveHouseholdForShipment(
   shipment: ShipStationShipment
 ): Promise<{ householdId: string; orderId: string } | null> {
   const orderId = String(shipment.orderKey ?? '').trim();
-  if (!orderId) return null;
+  if (!orderId || isSplitFollowUpKey(orderId)) return null;
 
   const indexSnap = await db.doc(`shipStationOrders/${orderId}`).get();
   if (indexSnap.exists) {
@@ -409,7 +409,7 @@ async function resolveHouseholdForFulfillment(
   const ssOrder = await fetchShipStationOrder(fulfillment.orderId);
   const orderId = String(ssOrder?.orderKey ?? '').trim();
   const householdId = String(ssOrder?.customerUsername ?? '').trim();
-  if (!orderId || !householdId) return null;
+  if (!orderId || !householdId || isSplitFollowUpKey(orderId)) return null;
   try {
     await writeShipStationIndex({
       householdId,
@@ -451,6 +451,9 @@ export async function processShipStationShipNotify(
     const trackingNumber = String(body.trackingNumber ?? '').trim();
     if (!orderId || !trackingNumber) {
       throw new Error('simulate requires orderKey (Firestore order id) and trackingNumber');
+    }
+    if (isSplitFollowUpKey(orderId)) {
+      throw new Error('simulate: split follow-up keys (containing __) are not Grapejuice orders');
     }
     let householdId = String(body.householdId ?? '').trim();
     if (!householdId) {
@@ -533,6 +536,16 @@ async function applyTrackingEvent(
   const trackingNumber = String(event.trackingNumber ?? '').trim();
   if (!trackingNumber) return 'skipped';
 
+  const eventKey = 'orderKey' in event ? String((event as ShipStationShipment).orderKey ?? '').trim() : '';
+  if (eventKey && isSplitFollowUpKey(eventKey)) {
+    logger.info('ShipStation split follow-up shipment ignored', {
+      kind,
+      orderKey: eventKey,
+      orderNumber: event.orderNumber,
+    });
+    return 'skipped';
+  }
+
   const resolved =
     kind === 'shipment' && 'orderKey' in event && String((event as ShipStationShipment).orderKey ?? '').trim()
       ? await resolveHouseholdForShipment(db, event as ShipStationShipment)
@@ -570,6 +583,14 @@ async function applyTrackingEvent(
     });
     return 'skipped';
   }
+}
+
+/**
+ * Delayed-item follow-ups use `{orderKey}__delayed`. They are separate labels for the same box.
+ * Their shipments must not write tracking or send email on the box, so the webhook ignores them.
+ */
+export function isSplitFollowUpKey(orderKey: string): boolean {
+  return orderKey.includes('__');
 }
 
 /** True when request carries the shared webhook secret (if configured). */

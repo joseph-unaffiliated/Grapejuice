@@ -402,7 +402,7 @@ async function fulfillMarketplaceOrder(householdId, orderId, order, skipShipStat
         return;
     }
     try {
-        await (0, shipstation_1.exportOrderToShipStation)({
+        const exported = await (0, shipstation_1.exportOrderToShipStation)({
             orderId,
             householdId,
             shippingAddress: (_h = fresh.shippingAddress) !== null && _h !== void 0 ? _h : {},
@@ -410,7 +410,14 @@ async function fulfillMarketplaceOrder(householdId, orderId, order, skipShipStat
             totalCents: (_k = fresh.totalCents) !== null && _k !== void 0 ? _k : 0,
             customerEmail: email.includes('@') ? email : undefined,
         });
-        await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
+        // A skipped export (no keys, incomplete address) must stay unlabeled so the hourly
+        // job retries. Marking it fulfilled here is what left gift orders with no label.
+        if (exported.exported) {
+            await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
+        }
+        else {
+            logger.warn('ShipStation export skipped; will retry', { orderId, householdId });
+        }
     }
     catch (shipErr) {
         logger.error('Marketplace ShipStation export failed', shipErr);
