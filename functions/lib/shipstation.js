@@ -202,7 +202,7 @@ function shippedEmailTemplate(order) {
 }
 /** One email per order. Safe to call again after a webhook retry. */
 async function sendShippedEmail(db, householdId, orderId) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     const ref = db.doc(`households/${householdId}/orders/${orderId}`);
     const snap = await ref.get();
     const order = snap.data();
@@ -217,15 +217,17 @@ async function sendShippedEmail(db, householdId, orderId) {
         const userSnap = await db.doc(`users/${userId}`).get();
         to = String((_c = (_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.email) !== null && _c !== void 0 ? _c : '').trim();
     }
+    if (!to)
+        to = String((_d = order.guestEmail) !== null && _d !== void 0 ? _d : '').trim();
     if (!to) {
         const address = order.shippingAddress;
-        to = String((_d = address === null || address === void 0 ? void 0 : address.email) !== null && _d !== void 0 ? _d : '').trim();
+        to = String((_e = address === null || address === void 0 ? void 0 : address.email) !== null && _e !== void 0 ? _e : '').trim();
     }
     if (!to.includes('@')) {
         logger.warn('Shipped email skipped (no recipient)', { orderId, householdId });
         return;
     }
-    const carrier = String((_e = order.carrier) !== null && _e !== void 0 ? _e : 'USPS');
+    const carrier = String((_f = order.carrier) !== null && _f !== void 0 ? _f : 'USPS');
     const template = shippedEmailTemplate(order);
     try {
         await (0, email_1.sendEmail)({

@@ -291,6 +291,7 @@ async function sendShippedEmail(
     const userSnap = await db.doc(`users/${userId}`).get();
     to = String(userSnap.data()?.email ?? '').trim();
   }
+  if (!to) to = String(order.guestEmail ?? '').trim();
   if (!to) {
     const address = order.shippingAddress as { email?: string } | undefined;
     to = String(address?.email ?? '').trim();
