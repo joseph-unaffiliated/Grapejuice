@@ -215,7 +215,7 @@ function base(order, info, delayed, remaining) {
 
 async function releaseFollowUps() {
   const onHold = await listByStatus("on_hold");
-  const followUps = onHold.filter((o) => String(o.orderKey ?? "").endsWith(FOLLOW_SUFFIX));
+  const followUps = onHold.filter((o) => /__delayed\d*$/.test(String(o.orderKey ?? "")));
   const holds = onHold.filter((o) => String(o.advancedOptions?.customField2 ?? "").startsWith(HOLD_PREFIX));
   console.log(`On-hold follow-ups: ${followUps.length}   held whole orders: ${holds.length}`);
   for (const o of [...followUps, ...holds]) {
