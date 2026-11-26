@@ -2,12 +2,26 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.shopOrderState = shopOrderState;
 exports.buildShopOrder = buildShopOrder;
-const testAccounts_1 = require("./testAccounts");
 /**
  * Storefront (no-box) orders for the admin Orders and Inventory page: `orders` docs with
  * orderType 'marketplace'. Admin-only, so buyer name and email are included.
  */
 const PAID = ['confirmed', 'shipped', 'delivered'];
+/**
+ * Same rule as isTest, except a name counts only when no letter comes right before it. A real
+ * customer whose address has "joseph" inside a longer word (ajoseph@oneclover.com) is not a test
+ * account. Test addresses like brendanfox1+qa1@gmail.com still count.
+ */
+function isTestShopper(...vals) {
+    return vals.some((v) => {
+        if (!v || !v.includes('@'))
+            return false;
+        const s = v.toLowerCase();
+        return (/@unaffiliated?(\.co)?$/.test(s) ||
+            /@(a\.com|test\.com|example\.com)$/.test(s) ||
+            /(^|[^a-z])(joseph|jweissgold|brendan)/.test(s));
+    });
+}
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const str = (v) => (typeof v === 'string' && v ? v : null);
 function iso(v) {
@@ -67,6 +81,6 @@ function buildShopOrder(input) {
     });
     const email = (_b = (_a = str(o.guestEmail)) !== null && _a !== void 0 ? _a : user === null || user === void 0 ? void 0 : user.email) !== null && _b !== void 0 ? _b : str((_c = o.shippingAddress) === null || _c === void 0 ? void 0 : _c.email);
     const timing = o.chargeTiming === 'checkout' || o.chargeTiming === 'lock' ? o.chargeTiming : null;
-    return Object.assign(Object.assign({ id: `${householdId}/${orderId}`, orderId, orderNumber: orderId.slice(0, 8).toUpperCase(), householdId, createdAt: iso(o.createdAt), paidAt: iso(o.confirmedAt), buyer: (_f = (_e = str((_d = o.shippingAddress) === null || _d === void 0 ? void 0 : _d.name)) !== null && _e !== void 0 ? _e : user === null || user === void 0 ? void 0 : user.name) !== null && _f !== void 0 ? _f : null, email, guest: o.checkoutSignedOut === true || Boolean(str(o.guestEmail)), test: (0, testAccounts_1.isTest)(email, user === null || user === void 0 ? void 0 : user.email), playthrough: o.playthrough === true }, shopOrderState(o)), { cancelReason: str(o.cancelReason), chargeTiming: timing, chargeFailure: str(o.chargeFailureMessage), lines, units: lines.reduce((s, l) => s + l.qty, 0), subtotalCents: num(o.subtotalCents), discountCents: (_g = num(o.discountCents)) !== null && _g !== void 0 ? _g : 0, creditCents: (_h = num(o.creditAppliedCents)) !== null && _h !== void 0 ? _h : ((_j = num(o.giftCreditAppliedCents)) !== null && _j !== void 0 ? _j : 0) + ((_k = num(o.platformCreditAppliedCents)) !== null && _k !== void 0 ? _k : 0), shippingCents: num(o.shippingCents), taxCents: num(o.taxCents), totalCents: num(o.totalCents), refundedCents: (_l = num(o.refundedCents)) !== null && _l !== void 0 ? _l : 0, promo: promoLabel(o.promo), attribution: input.attribution, location: input.location, trackingNumber: str(o.trackingNumber), carrier: str(o.carrier), shippedAt: iso(o.shippedAt) });
+    return Object.assign(Object.assign({ id: `${householdId}/${orderId}`, orderId, orderNumber: orderId.slice(0, 8).toUpperCase(), householdId, createdAt: iso(o.createdAt), paidAt: iso(o.confirmedAt), buyer: (_f = (_e = str((_d = o.shippingAddress) === null || _d === void 0 ? void 0 : _d.name)) !== null && _e !== void 0 ? _e : user === null || user === void 0 ? void 0 : user.name) !== null && _f !== void 0 ? _f : null, email, guest: o.checkoutSignedOut === true || Boolean(str(o.guestEmail)), test: isTestShopper(email, user === null || user === void 0 ? void 0 : user.email), playthrough: o.playthrough === true }, shopOrderState(o)), { cancelReason: str(o.cancelReason), chargeTiming: timing, chargeFailure: str(o.chargeFailureMessage), lines, units: lines.reduce((s, l) => s + l.qty, 0), subtotalCents: num(o.subtotalCents), discountCents: (_g = num(o.discountCents)) !== null && _g !== void 0 ? _g : 0, creditCents: (_h = num(o.creditAppliedCents)) !== null && _h !== void 0 ? _h : ((_j = num(o.giftCreditAppliedCents)) !== null && _j !== void 0 ? _j : 0) + ((_k = num(o.platformCreditAppliedCents)) !== null && _k !== void 0 ? _k : 0), shippingCents: num(o.shippingCents), taxCents: num(o.taxCents), totalCents: num(o.totalCents), refundedCents: (_l = num(o.refundedCents)) !== null && _l !== void 0 ? _l : 0, promo: promoLabel(o.promo), attribution: input.attribution, location: input.location, trackingNumber: str(o.trackingNumber), carrier: str(o.carrier), shippedAt: iso(o.shippedAt) });
 }
 //# sourceMappingURL=shopOrders.js.map

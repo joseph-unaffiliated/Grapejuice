@@ -54,6 +54,10 @@ export const DEFAULT_SHOP_AD_BINDINGS: ShopAdBinding[] = [
   { adName: 'shop-airdry-clay-menorah', itemIds: ['airdry-clay-menorah'] }, // Frame 112
   { adName: 'shop-wrapping-paper', itemIds: ['wrapping-paper'] }, // Frame 113
   { adName: 'shop-big-bag-of-gelt', itemIds: ['big-bag-of-gelt'] }, // Frame 114
+  { adName: 'shop-classic-dreidels', itemIds: ['classic-wooden-dreidels-pack-of-10'] }, // V2 Frame 121
+  { adName: 'shop-jelly-sufganiyah', itemIds: ['jelly-the-sufganiyah-stuffie'] }, // V2 Frame 122
+  { adName: 'shop-airdry-clay-v2', itemIds: ['airdry-clay-menorah'] }, // V2 Frame 119
+  { adName: 'shop-4-pack-gelt', itemIds: ['4-pack-of-gelt-2-big-and-5-little-in-each'] }, // V2 Frame 120
 ];
 
 type ConfigDoc = {

@@ -1,12 +1,27 @@
 import type { DocumentData } from 'firebase-admin/firestore';
-import { isTest } from './testAccounts';
-
 /**
  * Storefront (no-box) orders for the admin Orders and Inventory page: `orders` docs with
  * orderType 'marketplace'. Admin-only, so buyer name and email are included.
  */
 
 const PAID = ['confirmed', 'shipped', 'delivered'];
+
+/**
+ * Same rule as isTest, except a name counts only when no letter comes right before it. A real
+ * customer whose address has "joseph" inside a longer word (ajoseph@oneclover.com) is not a test
+ * account. Test addresses like brendanfox1+qa1@gmail.com still count.
+ */
+function isTestShopper(...vals: Array<string | null | undefined>): boolean {
+  return vals.some((v) => {
+    if (!v || !v.includes('@')) return false;
+    const s = v.toLowerCase();
+    return (
+      /@unaffiliated?(\.co)?$/.test(s) ||
+      /@(a\.com|test\.com|example\.com)$/.test(s) ||
+      /(^|[^a-z])(joseph|jweissgold|brendan)/.test(s)
+    );
+  });
+}
 
 export type DashShopLine = { itemId: string | null; name: string; qty: number; unitCents: number };
 
@@ -118,7 +133,7 @@ export function buildShopOrder(input: {
     buyer: str(o.shippingAddress?.name) ?? user?.name ?? null,
     email,
     guest: o.checkoutSignedOut === true || Boolean(str(o.guestEmail)),
-    test: isTest(email, user?.email),
+    test: isTestShopper(email, user?.email),
     playthrough: o.playthrough === true,
     ...shopOrderState(o),
     cancelReason: str(o.cancelReason),
