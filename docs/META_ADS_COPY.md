@@ -8,7 +8,7 @@ Every ad: CTA **Shop now**; tracking `utm_source=meta&utm_medium=paid_social&utm
 
 ### Shop / post-lock products (campaign "Grapejuice Co - Shop", start after boxes lock)
 
-**Live in Ads Manager:** campaign id `120248281015360519`, created Nov 3, 2026 via `scripts/meta-create-shop-ads.mjs`. **$200/day** CBO. Ad sets scheduled to start **Nov 21, 2026** (00:00 ET) so FBA inbound can be confirmed first — pull the start earlier in Ads Manager if stock is ready sooner. Box Broad/Follow-up turn off at lock (~11:59pm Nov 8 / Nov 9); this campaign takes that budget. Inventory auto-pause still applies once live.
+**Live in Ads Manager:** campaign id `120248281015360519`, created Nov 3, 2026 via `scripts/meta-create-shop-ads.mjs`. **$100/day** CBO (lowered from $200 on Nov 26, 2026). Live ad sets: Classic Dreidels, Jelly, Shamash, Dreidel Cookie Cutters, Air-dry clay (`shop-airdry-clay-v2`), 4-pack gelt (`shop-4-pack-gelt`). The Nov 21-scheduled ad sets and the toddler menorah stay paused until turned on in Ads Manager. Box Broad/Follow-up turn off at lock (~11:59pm Nov 8 / Nov 9); this campaign takes that budget. Inventory auto-pause still applies once live.
 
 Separate from Broad/Follow-up. Objective **Sales → Purchase**. One ad set per ad, optimizing for Purchase. CTA **Shop now**. Creative files: `/Untraditional/Ads/Product Ads/Frame {105,108–114}.mp4`. Instagram feed / Stories / Reels. UTMs: `utm_campaign=grapejuice-shop`.
 
