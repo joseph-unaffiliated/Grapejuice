@@ -248,7 +248,7 @@ function MarketplaceCheckoutBody() {
       <Text style={styles.title}>Checkout</Text>
       <Text style={styles.chargeBanner}>
         {shopMode
-          ? 'You’ll be charged today. Shipping is calculated below.'
+          ? 'You’ll be charged today. Shipping is free.'
           : `${arrival} These items ship with our Hanukkah boxes.`}
       </Text>
 

@@ -1174,13 +1174,13 @@ export const createMarketplaceCheckout = onCall(async (request) => {
       throw new HttpsError('invalid-argument', 'Cart total is too small.');
     }
 
-    const shippingCents = postLockShippingCents(
+    const { shippingCents, feesCents } = postLockShippingCents(
       lineItems.map((li) => ({
         qty: li.quantity,
         weight: li.weight,
         fbaFeeCents: li.fbaFeeCents,
       }))
-    ).shippingCents;
+    );
     const buyerEmail =
       guestEmail ||
       String(
@@ -1199,7 +1199,12 @@ export const createMarketplaceCheckout = onCall(async (request) => {
       platformCreditCents,
       discountCents
     );
-    const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
+    const { giftCreditApplied, platformCreditApplied, creditApplied } = priced;
+    // Shipping is free. FBA fees are charged on top, after credit and untaxed, and shown to the
+    // shopper with tax as "Taxes and fees" — so `taxCents` on the order is taxes plus fees.
+    const salesTaxCents = priced.taxCents;
+    const taxCents = salesTaxCents + feesCents;
+    const totalCents = priced.totalCents + feesCents;
 
     if (totalCents > 0 && totalCents < 50) {
       throw new HttpsError('invalid-argument', 'Order total is too small.');
@@ -1254,6 +1259,8 @@ export const createMarketplaceCheckout = onCall(async (request) => {
       shippingCents,
       discountCents: priced.discountApplied,
       taxCents,
+      feesCents,
+      salesTaxCents,
       totalCents,
       creditAppliedCents: creditApplied,
       giftCreditAppliedCents: giftCreditApplied,

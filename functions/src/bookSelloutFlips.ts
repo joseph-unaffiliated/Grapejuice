@@ -20,14 +20,19 @@ const FULL_CATALOG_TABLE = 'tblCUCVfohWTQy8fP';
 const F = { inventory: 'fldXpTJPasuaXfoeW', hold: 'fldFpeHc3sxneJ1TH' };
 const STATE_COLLECTION = 'bookSelloutFlips';
 
-export const BOOK_SELLOUT_FLIPS: Array<{ itemId: string; at: string }> = [
-  { itemId: 'book-the-story-of-hanukkah', at: '2026-10-23T14:22:00Z' }, // Fri Oct 23, 10:22 AM ET
-  { itemId: 'book-the-hanukkah-hop', at: '2026-10-23T19:36:00Z' }, // Fri Oct 23, 3:36 PM ET
-  { itemId: 'book-nathan-blows-out-the-hanukkah-candles', at: '2026-10-24T14:22:00Z' }, // Sat Oct 24, 10:22 AM ET
-  { itemId: 'book-the-latke-who-couldn-t-stop-screaming', at: '2026-10-24T19:36:00Z' }, // Sat Oct 24, 3:36 PM ET
-  { itemId: 'book-a-rugrats-chanukah', at: '2026-10-25T14:22:00Z' }, // Sun Oct 25, 10:22 AM ET
-  { itemId: 'book-ava-s-homemade-hanukkah', at: '2026-10-25T19:36:00Z' }, // Sun Oct 25, 3:36 PM ET
-];
+/**
+ * Retired Nov 27, 2026. The six Oct 23–25 flips (story-of-hanukkah 10/23 10:22 ET, hanukkah-hop
+ * 10/23 3:36 PM, nathan-blows-out 10/24 10:22, latke-who-couldn-t-stop-screaming 10/24 3:36,
+ * rugrats-chanukah 10/25 10:22, ava-s-homemade-hanukkah 10/25 3:36) never ran: AIRTABLE_PAT is
+ * read-only (the catalog sync only needs records:read), so every PATCH returned 403 and the job
+ * retried every 5 minutes. Airtable was already set to the committed count with Hold on, so the
+ * flips were cancelled in Firestore rather than fixed. A future flip needs a PAT with
+ * data.records:write on the catalog table.
+ */
+export const BOOK_SELLOUT_FLIPS: Array<{ itemId: string; at: string }> = [];
+
+const MAX_FLIP_ATTEMPTS = 3;
+const FLIP_RETRY_BACKOFF_MS = 60 * 60 * 1000;
 
 async function flipOneBook(db: Firestore, itemId: string): Promise<void> {
   const stateRef = db.doc(`${STATE_COLLECTION}/${itemId}`);
@@ -41,7 +46,15 @@ async function flipOneBook(db: Firestore, itemId: string): Promise<void> {
       const started = data?.startedAt?.toMillis?.() ?? 0;
       if (Date.now() - started < 15 * 60 * 1000) return false;
     }
-    tx.set(stateRef, { status: 'running', startedAt: Timestamp.now() }, { merge: true });
+    // A failed flip retries a few times, an hour apart, then waits for a human (a permissions
+    // error otherwise repeats every 5 minutes forever and floods Sentry).
+    const attempts = Number(data?.attempts) || 0;
+    if (status === 'failed') {
+      if (attempts >= MAX_FLIP_ATTEMPTS) return false;
+      const failedAt = data?.failedAt?.toMillis?.() ?? 0;
+      if (Date.now() - failedAt < FLIP_RETRY_BACKOFF_MS) return false;
+    }
+    tx.set(stateRef, { status: 'running', startedAt: Timestamp.now(), attempts: attempts + 1 }, { merge: true });
     return true;
   });
   if (!claimed) return;

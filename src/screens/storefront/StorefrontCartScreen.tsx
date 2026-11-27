@@ -308,7 +308,7 @@ export function StorefrontCartScreen() {
             </View>
             <Text style={styles.arrivalNote}>
               {shopMode
-                ? 'Shipping is calculated at checkout.'
+                ? 'Free shipping.'
                 : `${arrival} Items ship with our Hanukkah boxes.`}
             </Text>
 

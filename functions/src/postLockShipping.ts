@@ -3,6 +3,14 @@
  * src/services/box/postLockShipping.ts
  */
 
+/**
+ * Shop orders ship free (the site advertises free shipping). The weight tiers and per-unit FBA
+ * fees below still compute what the carrier costs us (`tierCents`, `fbaCents`), but the amount
+ * charged as shipping (`shippingCents`) is $0 while this is true; the per-unit FBA fees are
+ * charged instead as `feesCents`, shown to the shopper as part of "Taxes and fees".
+ */
+export const POST_LOCK_SHIPPING_FREE = true;
+
 export const DEFAULT_LINE_WEIGHT_OZ = 16;
 
 export const POST_LOCK_WEIGHT_TIERS: ReadonlyArray<{ maxOz: number; cents: number }> = [
@@ -58,7 +66,10 @@ export function postLockShippingCents(lines: PostLockShipLine[]): {
   weightOz: number;
   tierCents: number;
   fbaCents: number;
+  /** Charged as shipping — $0 while shipping is free. */
   shippingCents: number;
+  /** FBA fulfillment fees, charged to the shopper inside "Taxes and fees" (not taxed, not creditable). */
+  feesCents: number;
 } {
   let weightOz = 0;
   let fbaCents = 0;
@@ -78,6 +89,7 @@ export function postLockShippingCents(lines: PostLockShipLine[]): {
     weightOz,
     tierCents,
     fbaCents,
-    shippingCents: tierCents + fbaCents,
+    shippingCents: POST_LOCK_SHIPPING_FREE ? 0 : tierCents + fbaCents,
+    feesCents: POST_LOCK_SHIPPING_FREE ? fbaCents : 0,
   };
 }

@@ -3,6 +3,15 @@
  * Pre-lock Hanukkah boxes stay free (`SHIPPING_FLAT_CENTS = 0`).
  */
 
+/**
+ * Shop orders ship free (the site advertises free shipping). The weight tiers and per-unit FBA
+ * fees below still compute what the carrier costs us (`tierCents`, `fbaCents`), but the amount
+ * charged as shipping (`shippingCents`) is $0 while this is true; the per-unit FBA fees are
+ * charged instead as `feesCents`, shown to the shopper as part of "Taxes and fees". Keep in sync with
+ * functions/src/postLockShipping.ts.
+ */
+export const POST_LOCK_SHIPPING_FREE = true;
+
 /** Missing catalog weight → treat as 1 lb. */
 export const DEFAULT_LINE_WEIGHT_OZ = 16;
 
@@ -65,7 +74,10 @@ export function postLockShippingCents(lines: PostLockShipLine[]): {
   weightOz: number;
   tierCents: number;
   fbaCents: number;
+  /** Charged as shipping — $0 while shipping is free. */
   shippingCents: number;
+  /** FBA fulfillment fees, charged to the shopper inside "Taxes and fees" (not taxed, not creditable). */
+  feesCents: number;
 } {
   let weightOz = 0;
   let fbaCents = 0;
@@ -84,6 +96,7 @@ export function postLockShippingCents(lines: PostLockShipLine[]): {
     weightOz,
     tierCents,
     fbaCents,
-    shippingCents: tierCents + fbaCents,
+    shippingCents: POST_LOCK_SHIPPING_FREE ? 0 : tierCents + fbaCents,
+    feesCents: POST_LOCK_SHIPPING_FREE ? fbaCents : 0,
   };
 }

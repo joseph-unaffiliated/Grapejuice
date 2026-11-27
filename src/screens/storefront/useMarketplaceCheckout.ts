@@ -41,7 +41,7 @@ export function useMarketplaceCheckout() {
     0
   );
   const catalogById = new Map(catalog.map((c) => [c.id, c]));
-  const shippingCents = postLockShippingCents(
+  const { shippingCents, feesCents } = postLockShippingCents(
     cartItems.map((li) => {
       const cat = catalogById.get(li.itemId);
       return {
@@ -50,7 +50,7 @@ export function useMarketplaceCheckout() {
         fbaFeeCents: cat?.fbaFeeCents,
       };
     })
-  ).shippingCents;
+  );
   const promo = usePromo(subtotal);
   const priced = checkoutTotalsAfterCredit({
     merchandiseCents: subtotal + shippingCents,
@@ -58,7 +58,11 @@ export function useMarketplaceCheckout() {
     platformCreditCents: household?.platformCreditCents ?? 0,
     discountCents: promo.discountCents,
   });
-  const { taxCents, giftCreditApplied, platformCreditApplied, totalCents: total } = priced;
+  const { giftCreditApplied, platformCreditApplied } = priced;
+  // Mirrors createMarketplaceCheckout: shipping is free; FBA fees come after credit, untaxed, and
+  // are shown with sales tax as "Taxes and fees".
+  const taxCents = priced.taxCents + feesCents;
+  const total = priced.totalCents + feesCents;
 
   const checkoutLineItems: BoxLineItem[] = cartItems;
 

@@ -91,6 +91,11 @@ export function CheckoutOrderSummary({
           </Text>
           <Text style={styles.summaryPrice}>{formatDollars(shippingCents)}</Text>
         </View>
+      ) : marketplaceOnly ? (
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryName}>Shipping</Text>
+          <Text style={styles.summaryPrice}>Free</Text>
+        </View>
       ) : null}
       {discountCents ? (
         <View style={styles.summaryRow}>
@@ -112,7 +117,9 @@ export function CheckoutOrderSummary({
       ) : null}
       {taxCents ? (
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryName}>Estimated tax</Text>
+          <Text style={styles.summaryName}>
+            {marketplaceOnly ? 'Taxes and fees' : 'Estimated tax'}
+          </Text>
           <Text style={styles.summaryPrice}>{formatDollars(taxCents)}</Text>
         </View>
       ) : null}

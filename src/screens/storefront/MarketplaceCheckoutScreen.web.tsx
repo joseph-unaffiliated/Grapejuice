@@ -366,7 +366,7 @@ function MarketplaceCheckoutBody() {
       ? "We'll save your card and charge it when Hanukkah boxes lock. These items ship with your box."
       : "Your credits cover this order. We'll ship it with your box."
     : shopMode
-      ? 'You’ll be charged today. Shipping is calculated below.'
+      ? 'You’ll be charged today. Shipping is free.'
       : `${arrival} These items ship with our Hanukkah boxes.`;
 
   return (

@@ -955,11 +955,11 @@ exports.createMarketplaceCheckout = (0, sentry_1.onCall)(async (request) => {
         if (subtotalCents < 1) {
             throw new sentry_1.HttpsError('invalid-argument', 'Cart total is too small.');
         }
-        const shippingCents = (0, postLockShipping_1.postLockShippingCents)(lineItems.map((li) => ({
+        const { shippingCents, feesCents } = (0, postLockShipping_1.postLockShippingCents)(lineItems.map((li) => ({
             qty: li.quantity,
             weight: li.weight,
             fbaFeeCents: li.fbaFeeCents,
-        }))).shippingCents;
+        })));
         const buyerEmail = guestEmail ||
             String((_l = (_j = (authedUid ? (_h = (await db.doc(`users/${authedUid}`).get()).data()) === null || _h === void 0 ? void 0 : _h.email : null)) !== null && _j !== void 0 ? _j : (_k = request.auth) === null || _k === void 0 ? void 0 : _k.token.email) !== null && _l !== void 0 ? _l : '')
                 .trim()
@@ -968,7 +968,12 @@ exports.createMarketplaceCheckout = (0, sentry_1.onCall)(async (request) => {
         const resolvedPromo = await (0, promotions_1.resolveCheckoutPromo)(db, data.promo, buyerEmail);
         const { discountCents, promo } = (0, promotions_1.applyResolvedPromo)(resolvedPromo, subtotalCents);
         const priced = (0, chargePilotBox_1.checkoutTotalsAfterCredit)(subtotalCents + shippingCents, giftCreditCents, platformCreditCents, discountCents);
-        const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
+        const { giftCreditApplied, platformCreditApplied, creditApplied } = priced;
+        // Shipping is free. FBA fees are charged on top, after credit and untaxed, and shown to the
+        // shopper with tax as "Taxes and fees" — so `taxCents` on the order is taxes plus fees.
+        const salesTaxCents = priced.taxCents;
+        const taxCents = salesTaxCents + feesCents;
+        const totalCents = priced.totalCents + feesCents;
         if (totalCents > 0 && totalCents < 50) {
             throw new sentry_1.HttpsError('invalid-argument', 'Order total is too small.');
         }
@@ -1002,6 +1007,8 @@ exports.createMarketplaceCheckout = (0, sentry_1.onCall)(async (request) => {
         const orderPayload = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ status: (chargeNow ? totalCents > 0 : needsCard) ? 'pending' : 'committed', chargeTiming: chargeNow ? 'checkout' : 'lock', orderType: 'marketplace', lineItems,
             subtotalCents,
             shippingCents, discountCents: priced.discountApplied, taxCents,
+            feesCents,
+            salesTaxCents,
             totalCents, creditAppliedCents: creditApplied, giftCreditAppliedCents: giftCreditApplied, platformCreditAppliedCents: platformCreditApplied, shippingAddress, holidayId: HOLIDAY_ID, lockAt }, (orderUserId ? { userId: orderUserId } : {})), (guestEmail ? { guestEmail, checkoutSignedOut: true } : {})), (checkoutClaim
             ? { checkoutClaimHash: checkoutClaim.hash, checkoutClaimExpiresAt: checkoutClaim.expiresAt }
             : {})), { estimatedDelivery, inventoryReserved: true, inventoryReservedAt: reservedAt, inventoryReservedLines: reservedLines, createdAt: firestore_1.FieldValue.serverTimestamp() }), (attribution ? { attribution } : {})), (promo ? { promo } : {}));
