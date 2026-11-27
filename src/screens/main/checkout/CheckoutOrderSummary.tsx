@@ -84,6 +84,12 @@ export function CheckoutOrderSummary({
           </View>
         );
       })}
+      {marketplaceOnly && subtotal != null ? (
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryName}>Subtotal</Text>
+          <Text style={styles.summaryPrice}>{formatDollars(subtotal)}</Text>
+        </View>
+      ) : null}
       {shippingCents ? (
         <View style={styles.summaryRow}>
           <Text style={styles.summaryName}>
@@ -123,7 +129,7 @@ export function CheckoutOrderSummary({
           <Text style={styles.summaryPrice}>{formatDollars(taxCents)}</Text>
         </View>
       ) : null}
-      {subtotal != null && subtotal !== total ? (
+      {!marketplaceOnly && subtotal != null && subtotal !== total ? (
         <View style={styles.summaryRow}>
           <Text style={styles.summaryName}>Subtotal</Text>
           <Text style={styles.summaryPrice}>{formatDollars(subtotal + (shippingCents ?? 0))}</Text>
