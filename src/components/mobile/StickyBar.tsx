@@ -6,6 +6,9 @@ import { MobileButton } from './MobileButton';
 import { useCookieButtonClearance } from '../../hooks/useCookieButtonClearance';
 import { useRavSurfaceStore } from '../../stores/ravSurfaceStore';
 import { m, mFont } from './mobileTheme';
+import { borderRadius, semanticColors, typeface } from '../../constants/theme';
+import { Icon } from '../ui/Icon';
+import { icons } from '../../constants/icons';
 
 type Props = {
   /** Small line above the total: "Box $80 + $15", "Charged after Nov 7". */
@@ -14,7 +17,8 @@ type Props = {
   total?: string;
   /** Tapping the label/total area (opens the receipt). */
   onSummaryPress?: () => void;
-  cta?: { label: string; onPress: () => void; disabled?: boolean; busy?: boolean; variant?: 'primary' | 'secondary' };
+  /** `pill` matches the quantity stepper (32pt tall, gold hairline, dark fill) for use beside it. */
+  cta?: { label: string; onPress: () => void; disabled?: boolean; busy?: boolean; variant?: 'primary' | 'secondary' | 'pill' };
   /** Side by side (box editor) or stacked (checkout, gifts). */
   layout?: 'row' | 'stack';
   /** Shown above the bar, e.g. "Move both sliders to continue". */
@@ -55,8 +59,23 @@ export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', h
         <View style={styles.row}>
           {leading ?? summary}
           {cta ? (
-            <View style={ctaFill ? styles.rowCta : null}>
-              <MobileButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} busy={cta.busy} variant={cta.variant} height={ctaFill ? 50 : 48} style={ctaFill ? null : styles.ctaHug} />
+            <View style={ctaFill && cta.variant !== 'pill' ? styles.rowCta : null}>
+              {cta.variant === 'pill' ? (
+                <Pressable
+                  onPress={cta.onPress}
+                  disabled={cta.disabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={cta.label}
+                  style={[styles.pill, cta.disabled && styles.pillDisabled]}
+                >
+                  <View style={styles.pillInner}>
+                    <Text style={styles.pillText}>{cta.label}</Text>
+                    <Icon icon={icons.arrowRight} size={10} color={semanticColors.brand} />
+                  </View>
+                </Pressable>
+              ) : (
+                <MobileButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} busy={cta.busy} variant={cta.variant} height={ctaFill ? 50 : 48} style={ctaFill ? null : styles.ctaHug} />
+              )}
             </View>
           ) : null}
         </View>
@@ -68,7 +87,7 @@ export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', h
               <Text style={styles.stackTotal}>{total}</Text>
             </View>
           ) : null}
-          {cta ? <MobileButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} busy={cta.busy} variant={cta.variant} height={54} /> : null}
+          {cta ? <MobileButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} busy={cta.busy} variant={cta.variant === 'pill' ? 'primary' : cta.variant} height={54} /> : null}
         </>
       )}
     </View>,
@@ -126,6 +145,24 @@ const styles = StyleSheet.create({
   summary: { flexShrink: 1, maxWidth: '45%' },
   summaryFill: { flex: 1 },
   ctaHug: { width: 'auto', paddingHorizontal: 18, borderRadius: 8 },
+  pill: {
+    minHeight: 32,
+    borderRadius: borderRadius.pill,
+    borderWidth: 0.5,
+    borderColor: semanticColors.brand,
+    backgroundColor: semanticColors.logoDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  pillDisabled: { opacity: 0.55 },
+  pillInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pillText: {
+    ...typeface('regular'),
+    fontSize: 12,
+    lineHeight: 14,
+    color: semanticColors.textInverse,
+  },
   label: { fontSize: 12.5, color: m.muted, ...mFont(300), lineHeight: 16 },
   total: { fontSize: 18, color: m.ink, ...mFont(500), lineHeight: 23 },
   chev: { fontSize: 11, color: m.goldDark },

@@ -153,7 +153,7 @@ export function MobileProductBody(p: Props) {
   ) : p.cartQty && p.cartQty > 0 && p.onCartQuantity && p.onCheckout ? (
     <StickyBar
       leading={<CartQtyStepper quantity={p.cartQty} onChange={p.onCartQuantity} disabled={p.saving} maxQuantity={p.cartMaxQty} label={p.item.name} />}
-      cta={{ label: 'Checkout', onPress: p.onCheckout, disabled: p.saving }}
+      cta={{ label: 'Check Out', onPress: p.onCheckout, disabled: p.saving, variant: 'pill' }}
     />
   ) : (
     <StickyBar label="On its own" total={formatCatalogDollars(p.priceCents)} cta={{ label: 'Add to Cart', onPress: p.onBuyJustThis ?? (() => {}), disabled: !p.onBuyJustThis || p.saving }} />

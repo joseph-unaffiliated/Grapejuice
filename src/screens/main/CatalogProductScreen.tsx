@@ -794,8 +794,8 @@ export function CatalogProductScreen() {
               />
             </View>
 
-            <View style={[styles.ctaBlock, showMarketplaceQty && styles.ctaBlockWide]}>
-              <View style={[styles.ctaRow, showMarketplaceQty && styles.ctaRowWide]}>
+            <View style={styles.ctaBlock}>
+              <View style={styles.ctaRow}>
                 {showMarketplaceQty ? (
                   <>
                     <CartQtyStepper
@@ -816,12 +816,15 @@ export function CatalogProductScreen() {
                     />
                     {/* Once it's in the cart, the way to pay is one tap away, right beside the stepper. */}
                     <TouchableOpacity
-                      style={[styles.cta, styles.ctaPrimary, styles.ctaCheckout]}
+                      style={styles.ctaCheckout}
                       onPress={() => navigation.navigate('StorefrontCart')}
                       accessibilityRole="button"
-                      accessibilityLabel="Checkout"
+                      accessibilityLabel="Check Out"
                     >
-                      <Text style={styles.ctaPrimaryText}>Checkout</Text>
+                      <View style={styles.ctaCheckoutInner}>
+                        <Text style={styles.ctaCheckoutText}>Check Out</Text>
+                        <Icon icon={icons.arrowRight} size={10} color={semanticColors.brand} />
+                      </View>
                     </TouchableOpacity>
                   </>
                 ) : showInBoxControls ? (
@@ -1155,10 +1158,26 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     gap: spacing.sm,
   },
-  /** In the cart: stepper and Checkout share one full-width row. */
-  ctaBlockWide: { alignSelf: 'stretch', alignItems: 'stretch' },
-  ctaRowWide: { alignSelf: 'stretch' },
-  ctaCheckout: { flexGrow: 1, minWidth: 140 },
+  /** Matches CartQtyStepper: 32pt pill, gold hairline, dark fill, gold label. */
+  ctaCheckout: {
+    minHeight: 32,
+    borderRadius: borderRadius.pill,
+    borderWidth: 0.5,
+    borderColor: semanticColors.brand,
+    backgroundColor: semanticColors.logoDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
+  },
+  ctaCheckoutInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  ctaCheckoutText: {
+    ...typeface('regular'),
+    fontSize: 12,
+    lineHeight: 14,
+    color: semanticColors.textInverse,
+    textAlign: 'center',
+  },
   cta: {
     paddingVertical: 14,
     paddingHorizontal: spacing.lg,
