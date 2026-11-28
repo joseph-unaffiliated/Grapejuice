@@ -9,6 +9,7 @@ import { MobileButton } from '../../components/mobile/MobileButton';
 import { MobileSheet } from '../../components/mobile/MobileSheet';
 import { ProductTileMobile, stockStatus } from '../../components/mobile/ProductTileMobile';
 import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
+import { CartQtyStepper } from '../../components/storefront/CartQtyStepper';
 import { BoxPitch } from '../../components/mobile/BoxPitch';
 import { ProductNote } from '../../components/box/ProductNote';
 import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../../components/mobile/mobileTheme';
@@ -58,6 +59,12 @@ type Props = {
   onViewBox: () => void;
   onQuantity: (delta: 1 | -1) => void;
   onBuyJustThis?: () => void;
+  /** Shop cart: how many of this item are already in the cart (0 = not in it). */
+  cartQty?: number;
+  cartMaxQty?: number;
+  onCartQuantity?: (delta: 1 | -1) => void;
+  /** Opens the cart; shown once the item is in it, so Add to Cart never doubles up. */
+  onCheckout?: () => void;
   onStartBoxWithIt: () => void;
   /** Post-lock shop: hide Start-a-box pitch. */
   hideBoxPitch?: boolean;
@@ -143,6 +150,11 @@ export function MobileProductBody(p: Props) {
     <StickyBar total={p.memberCents > 0 ? formatCatalogDollars(p.memberCents) : 'Included'} cta={{ label: 'Add to my box', onPress: pressAddToMyBox, disabled: p.locked || p.saving, busy: p.saving }} />
   ) : p.boxOnly ? (
     <StickyBar label="In a box" total={boxPrice} cta={{ label: 'Start a box with it', onPress: p.onStartBoxWithIt }} />
+  ) : p.cartQty && p.cartQty > 0 && p.onCartQuantity && p.onCheckout ? (
+    <StickyBar
+      leading={<CartQtyStepper quantity={p.cartQty} onChange={p.onCartQuantity} disabled={p.saving} maxQuantity={p.cartMaxQty} label={p.item.name} />}
+      cta={{ label: 'Checkout', onPress: p.onCheckout, disabled: p.saving }}
+    />
   ) : (
     <StickyBar label="On its own" total={formatCatalogDollars(p.priceCents)} cta={{ label: 'Add to Cart', onPress: p.onBuyJustThis ?? (() => {}), disabled: !p.onBuyJustThis || p.saving }} />
   );

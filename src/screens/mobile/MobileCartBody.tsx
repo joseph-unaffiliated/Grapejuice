@@ -93,7 +93,7 @@ export function MobileCartBody(p: Props) {
           <BoxPitch items={pitchItems} title={pitchItems.length > 1 ? 'Getting these for Hanukkah? Put them in a box' : 'Getting this for Hanukkah? Put it in a box'} cta={pitchItems.length > 1 ? 'Start a box with these' : 'Start a box with it'} onPress={p.onStartBox} />
         </View>
       ) : null}
-      <StickyBar label="Subtotal · charged today" total={formatCatalogDollars(p.subtotalCents)} layout="stack" cta={{ label: 'Checkout', onPress: p.onCheckout, disabled: Object.keys(p.issues).length > 0 }} />
+      <StickyBar label="Subtotal · charged today" total={formatCatalogDollars(p.subtotalCents)} layout="stack" cookieGap cta={{ label: 'Checkout', onPress: p.onCheckout, disabled: Object.keys(p.issues).length > 0 }} />
     </View>
   );
 }

@@ -27,10 +27,12 @@ type Props = {
    * instead of hiding it or letting it sit on the black button.
    */
   cookieGap?: boolean;
+  /** Row layout: replaces the label and total (e.g. a quantity stepper). */
+  leading?: React.ReactNode;
 };
 
 /** Always white: the total, then the black button. Labels say where they go. */
-export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', hint, testID, ctaFill = true, cookieGap = false }: Props) {
+export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', hint, testID, ctaFill = true, cookieGap = false, leading }: Props) {
   const insets = useSafeAreaInsets();
   const focused = useScreenFocused();
   const onLayout = useCookieButtonClearance(Platform.OS === 'web' && focused, { reserveGap: cookieGap });
@@ -51,7 +53,7 @@ export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', h
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
       {layout === 'row' ? (
         <View style={styles.row}>
-          {summary}
+          {leading ?? summary}
           {cta ? (
             <View style={ctaFill ? styles.rowCta : null}>
               <MobileButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} busy={cta.busy} variant={cta.variant} height={ctaFill ? 50 : 48} style={ctaFill ? null : styles.ctaHug} />

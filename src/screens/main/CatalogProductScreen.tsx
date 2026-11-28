@@ -678,7 +678,11 @@ export function CatalogProductScreen() {
             onOpenProduct={(s) => navigation.push('CatalogProduct', { slug: s })}
             onViewBox={() => navigation.navigate('MyBox')}
             onQuantity={(d) => void changeInBoxQuantity(d)}
-            onBuyJustThis={directOk && !marketplaceBlocked ? async () => { await addToCart(); navigation.navigate('StorefrontCart'); } : undefined}
+            onBuyJustThis={directOk && !marketplaceBlocked ? addToCart : undefined}
+            cartQty={showMarketplaceQty ? marketplaceQty : 0}
+            cartMaxQty={directRemaining ?? undefined}
+            onCartQuantity={(delta) => changeCartQuantity(slug, delta)}
+            onCheckout={() => navigation.navigate('StorefrontCart')}
             onStartBoxWithIt={() => void buyWithBox()}
             hideBoxPitch={shopCheckout}
             onSeeAll={aisle ? () => goCategory(aisle.slug) : undefined}
@@ -790,25 +794,36 @@ export function CatalogProductScreen() {
               />
             </View>
 
-            <View style={styles.ctaBlock}>
-              <View style={styles.ctaRow}>
+            <View style={[styles.ctaBlock, showMarketplaceQty && styles.ctaBlockWide]}>
+              <View style={[styles.ctaRow, showMarketplaceQty && styles.ctaRowWide]}>
                 {showMarketplaceQty ? (
-                  <CartQtyStepper
-                    quantity={marketplaceQty}
-                    label={item.name}
-                    disabled={saving}
-                    maxQuantity={directRemaining ?? undefined}
-                    onChange={(delta) => {
-                      if (
-                        delta > 0 &&
-                        directRemaining != null &&
-                        marketplaceQty >= directRemaining
-                      ) {
-                        return;
-                      }
-                      changeCartQuantity(slug, delta);
-                    }}
-                  />
+                  <>
+                    <CartQtyStepper
+                      quantity={marketplaceQty}
+                      label={item.name}
+                      disabled={saving}
+                      maxQuantity={directRemaining ?? undefined}
+                      onChange={(delta) => {
+                        if (
+                          delta > 0 &&
+                          directRemaining != null &&
+                          marketplaceQty >= directRemaining
+                        ) {
+                          return;
+                        }
+                        changeCartQuantity(slug, delta);
+                      }}
+                    />
+                    {/* Once it's in the cart, the way to pay is one tap away, right beside the stepper. */}
+                    <TouchableOpacity
+                      style={[styles.cta, styles.ctaPrimary, styles.ctaCheckout]}
+                      onPress={() => navigation.navigate('StorefrontCart')}
+                      accessibilityRole="button"
+                      accessibilityLabel="Checkout"
+                    >
+                      <Text style={styles.ctaPrimaryText}>Checkout</Text>
+                    </TouchableOpacity>
+                  </>
                 ) : showInBoxControls ? (
                   <>
                     {showSecondary ? (
@@ -1140,6 +1155,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     gap: spacing.sm,
   },
+  /** In the cart: stepper and Checkout share one full-width row. */
+  ctaBlockWide: { alignSelf: 'stretch', alignItems: 'stretch' },
+  ctaRowWide: { alignSelf: 'stretch' },
+  ctaCheckout: { flexGrow: 1, minWidth: 140 },
   cta: {
     paddingVertical: 14,
     paddingHorizontal: spacing.lg,
