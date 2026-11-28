@@ -2489,7 +2489,7 @@ function ShopOrdersSection({
                   o.creditCents ? `−${money(o.creditCents)}` : "—",
                 ],
                 ["Shipping", money(o.shippingCents)],
-                ["Tax", money(o.taxCents)],
+                ["Taxes and fees", money(o.taxCents)],
                 ["Total", money(o.totalCents)],
                 ["Refunded", o.refundedCents ? money(o.refundedCents) : "—"],
                 ["Promo", o.promo ?? "—"],

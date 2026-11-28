@@ -244,7 +244,7 @@ export function MobileProductBody(p: Props) {
           ...p.details,
           {
             label: 'Shipping',
-            value: p.hasBox ? 'Ships with your box' : 'Shipping calculated at checkout',
+            value: p.hasBox ? 'Free, ships with your box' : 'Free shipping',
           },
         ].map((d) => (
           <View key={d.label} style={styles.listRow}>

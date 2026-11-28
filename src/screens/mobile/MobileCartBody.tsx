@@ -85,7 +85,7 @@ export function MobileCartBody(p: Props) {
         <View style={styles.totals}>
           <Line label="Subtotal" value={formatCatalogDollars(p.subtotalCents)} />
           <Line label="Shipping" value="Free" />
-          <Line label="Tax" value="At checkout" />
+          <Line label="Taxes and fees" value="At checkout" />
         </View>
       </View>
       {!p.shopMode && !p.hasBox && pitchItems.length ? (
